@@ -180,7 +180,8 @@
 
 ## test_plan:
   current_focus:
-    - "MVP UI terminate flow fix needed"
+    - "Frontend: verify MVP flows + share room + join by code + chat head overlay + terminate flow"
+    - "Backend: verify rooms endpoints"
   stuck_tasks:
     - "None"
   test_all: false
