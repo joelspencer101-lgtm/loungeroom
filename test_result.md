@@ -101,3 +101,71 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+
+## user_problem_statement: Build Coffee Table, a shared virtual browser (Hyperbeam) with mobile-first UI. Backend FastAPI proxies Hyperbeam under /api, React uses REACT_APP_BACKEND_URL, Mongo via MONGO_URL. MVP: create/terminate session, embed view, basic customization.
+
+## backend:
+  - task: "HB proxy endpoints (/api/hb)"
+    implemented: true
+    working: "NA"
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      -working: true
+      -agent: "main"
+      -comment: "Implemented POST /api/hb/sessions, GET /api/hb/sessions/{uuid}, DELETE /api/hb/sessions/{uuid}, health. Uses UUIDs, ISO dates, MONGO_URL, no hardcoded URLs."
+  - task: "Status routes baseline"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "low"
+    needs_retesting: false
+    status_history:
+      -working: true
+      -agent: "main"
+      -comment: "Hello world and status_checks maintained."
+
+## frontend:
+  - task: "MVP UI: API key, create/terminate, embed iframe, customization"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/App.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      -working: true
+      -agent: "main"
+      -comment: "Uses REACT_APP_BACKEND_URL + '/api', sleek UI, fullscreen, looping video background when inactive."
+  - task: "Styling"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/App.css"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+      -working: true
+      -agent: "main"
+      -comment: "Advanced CSS for mobile/tablet."
+
+## metadata:
+  created_by: "main_agent"
+  version: "1.0"
+  test_sequence: 0
+  run_ui: false
+
+## test_plan:
+  current_focus:
+    - "Test backend HB proxy endpoints"
+  stuck_tasks:
+    - "None"
+  test_all: false
+  test_priority: "high_first"
+
+## agent_communication:
+  -agent: "main"
+  -message: "Please validate POST/GET/DELETE for /api/hb with Authorization Bearer using a real Hyperbeam key provided by user. Ensure 200 response for create and proper error handling."
