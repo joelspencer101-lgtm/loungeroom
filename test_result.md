@@ -177,3 +177,5 @@
   -message: "Please validate POST/GET/DELETE for /api/hb with Authorization Bearer using a real Hyperbeam key provided by user. Ensure 200 response for create and proper error handling."
   -agent: "testing"
   -message: "Backend testing completed successfully. All 7 HB proxy endpoint tests passed: health check, session creation with real Hyperbeam API, session retrieval, proper termination, 410 response for terminated sessions, and correct 422 error handling for missing auth. Backend is fully functional and ready for production."
+  -agent: "testing"
+  -message: "Frontend UI testing completed. CRITICAL ISSUE FOUND: Terminate session flow is broken - after clicking terminate and confirming, the session state is not properly cleared. The UI still shows 'Session Active' alert and 'Terminate' button instead of returning to 'Create Session' state. All other functionality works: app loading, form interactions, session creation with iframe, customization features. This is a high-priority bug that needs immediate fix."
