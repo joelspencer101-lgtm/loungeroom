@@ -166,7 +166,7 @@
 
 ## test_plan:
   current_focus:
-    - "Backend testing completed successfully"
+    - "MVP UI terminate flow fix needed"
   stuck_tasks:
     - "None"
   test_all: false
