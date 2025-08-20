@@ -125,11 +125,14 @@
     file: "/app/backend/server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       -working: true
       -agent: "main"
       -comment: "Added POST /api/hb/rooms (create share code) and GET /api/hb/rooms/{code} (resolve to session)."
+      -working: "NA"
+      -agent: "testing"
+      -comment: "Cannot test rooms endpoints due to Hyperbeam API VM limit exceeded error. Session creation fails with 'err_exceeded_vm_limit' preventing room creation/join testing. Backend code appears correct but requires valid Hyperbeam plan to test."
   - task: "Status routes baseline"
     implemented: true
     working: true
