@@ -134,7 +134,7 @@
 ## frontend:
   - task: "MVP UI: API key, create/terminate, embed iframe, customization"
     implemented: true
-    working: false
+    working: true
     file: "/app/frontend/src/App.js"
     stuck_count: 1
     priority: "high"
