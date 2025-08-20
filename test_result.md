@@ -119,6 +119,17 @@
       -working: true
       -agent: "testing"
       -comment: "All 7 backend API tests passed successfully. Health check returns correct format, session creation/retrieval/termination work properly with real Hyperbeam API, proper 410 response for terminated sessions, and correct 422 error handling for missing authorization. Backend is fully functional."
+  - task: "HB rooms endpoints (/api/hb/rooms)"
+    implemented: true
+    working: "NA"
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      -working: true
+      -agent: "main"
+      -comment: "Added POST /api/hb/rooms (create share code) and GET /api/hb/rooms/{code} (resolve to session)."
   - task: "Status routes baseline"
     implemented: true
     working: true
