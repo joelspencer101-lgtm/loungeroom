@@ -107,15 +107,18 @@
 ## backend:
   - task: "HB proxy endpoints (/api/hb)"
     implemented: true
-    working: "NA"
+    working: true
     file: "/app/backend/server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       -working: true
       -agent: "main"
       -comment: "Implemented POST /api/hb/sessions, GET /api/hb/sessions/{uuid}, DELETE /api/hb/sessions/{uuid}, health. Uses UUIDs, ISO dates, MONGO_URL, no hardcoded URLs."
+      -working: true
+      -agent: "testing"
+      -comment: "All 7 backend API tests passed successfully. Health check returns correct format, session creation/retrieval/termination work properly with real Hyperbeam API, proper 410 response for terminated sessions, and correct 422 error handling for missing authorization. Backend is fully functional."
   - task: "Status routes baseline"
     implemented: true
     working: true
