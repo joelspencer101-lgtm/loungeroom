@@ -11,6 +11,8 @@ from typing import List, Optional, Dict, Any
 import uuid
 from datetime import datetime, timezone
 import requests
+import random
+import string
 
 
 ROOT_DIR = Path(__file__).parent
@@ -89,7 +91,7 @@ class HBSessionResponse(BaseModel):
 
 async def _validate_api_key(authorization: str = Header(...)) -> str:
     if not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Invalid authorization header. Use 'Bearer &lt;api_key&gt;'")
+        raise HTTPException(status_code=401, detail="Invalid authorization header. Use 'Bearer <api_key>'")
     return authorization.split("Bearer ", 1)[1]
 
 @hb_router.get("/health")
@@ -204,6 +206,66 @@ async def hb_terminate_session(session_uuid: str, api_key: str = Depends(_valida
         return {"message": "Marked session inactive locally (remote terminate may have failed)", "session_uuid": session_uuid}
 
     return {"message": "Session terminated successfully", "session_uuid": session_uuid}
+
+# -------------------------------------------------------------------------------------
+# Simple Rooms: shareable code that maps to an existing session_uuid
+# -------------------------------------------------------------------------------------
+class CreateRoomPayload(BaseModel):
+    session_uuid: str
+    label: Optional[str] = None
+
+class RoomResponse(BaseModel):
+    code: str
+    session_uuid: str
+    created_at: str
+    label: Optional[str] = None
+
+def _gen_code(n: int = 6) -> str:
+    alphabet = string.ascii_uppercase + string.digits
+    return ''.join(random.choice(alphabet) for _ in range(n))
+
+@hb_router.post("/rooms", response_model=RoomResponse)
+async def create_room(payload: CreateRoomPayload):
+    sess = await db.hb_sessions.find_one({"session_uuid": payload.session_uuid, "is_active": True})
+    if not sess:
+        raise HTTPException(status_code=404, detail="Active session not found")
+
+    # ensure unique code
+    for _ in range(10):
+        code = _gen_code()
+        existing = await db.hb_rooms.find_one({"code": code})
+        if not existing:
+            break
+    else:
+        raise HTTPException(status_code=500, detail="Failed to generate room code")
+
+    doc = {
+        "code": code,
+        "session_uuid": payload.session_uuid,
+        "label": payload.label or "",
+        "created_at": now_iso(),
+    }
+    await db.hb_rooms.insert_one(doc)
+    return RoomResponse(**doc)
+
+@hb_router.get("/rooms/{code}", response_model=HBSessionResponse)
+async def get_room_session(code: str):
+    room = await db.hb_rooms.find_one({"code": code})
+    if not room:
+        raise HTTPException(status_code=404, detail="Room not found")
+
+    sess = await db.hb_sessions.find_one({"session_uuid": room["session_uuid"]})
+    if not sess:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if not sess.get("is_active", False):
+        raise HTTPException(status_code=410, detail="Session inactive")
+
+    return HBSessionResponse(
+        session_uuid=sess["session_uuid"],
+        embed_url=sess["embed_url"],
+        created_at=sess["created_at"],
+        metadata=sess.get("metadata", {}),
+    )
 
 # Include routers in the main app
 app.include_router(api_router)

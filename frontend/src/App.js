@@ -22,6 +22,57 @@ function useLocalStorage(key, initialValue) {
   return [value, setValue];
 }
 
+function DraggableChatHead({ id = "me", initial = "😀", color = "#8b5cf6", storageKey = "ct_chat_head" }) {
+  const rootRef = useRef(null);
+  const [pos, setPos] = useLocalStorage(`${storageKey}_pos`, { x: 24, y: 24 });
+  const [size, setSize] = useLocalStorage(`${storageKey}_size`, 64);
+  const dragging = useRef(false);
+  const resizing = useRef(false);
+  const start = useRef({ x: 0, y: 0, px: 0, py: 0, s: 0 });
+
+  useEffect(() => {
+    const el = rootRef.current;
+    if (!el) return;
+    const onPointerDown = (e) => {
+      if (e.target.getAttribute("data-resizer") === "1") {
+        resizing.current = true;
+      } else {
+        dragging.current = true;
+      }
+      start.current = { x: e.clientX, y: e.clientY, px: pos.x, py: pos.y, s: size };
+      el.setPointerCapture(e.pointerId);
+    };
+    const onPointerMove = (e) => {
+      if (!dragging.current && !resizing.current) return;
+      const dx = e.clientX - start.current.x;
+      const dy = e.clientY - start.current.y;
+      if (dragging.current) setPos({ x: Math.max(0, start.current.px + dx), y: Math.max(0, start.current.py + dy) });
+      if (resizing.current) setSize(Math.max(48, Math.min(200, start.current.s + dx)));
+    };
+    const onPointerUp = (e) => {
+      dragging.current = false; resizing.current = false;
+      try { el.releasePointerCapture(e.pointerId); } catch {}
+    };
+    el.addEventListener("pointerdown", onPointerDown);
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
+    return () => {
+      el.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+    };
+  }, [pos, size, setPos, setSize]);
+
+  return (
+    <div ref={rootRef} className="ct-chat-head" style={{ left: pos.x, top: pos.y, width: size, height: size, background: color }}>
+      <div className="ct-chat-initial" style={{ fontSize: Math.max(20, size / 2.8) }} title="Drag to move">
+        {initial}
+      </div>
+      <div className="ct-resizer" data-resizer="1" title="Drag to resize" />
+    </div>
+  );
+}
+
 function App() {
   const [apiKey, setApiKey] = useState(() => sessionStorage.getItem("hb_api_key") || "");
   const [startUrl, setStartUrl] = useState("https://www.google.com");
@@ -35,6 +86,18 @@ function App() {
   const [frameStyle, setFrameStyle] = useLocalStorage("ct_frame_style", "glass");
   const [loopVideo, setLoopVideo] = useLocalStorage("ct_loop_video", "");
   const containerRef = useRef(null);
+
+  // share room code
+  const [shareCode, setShareCode] = useState("");
+  const [joinCode, setJoinCode] = useState("");
+
+  // chat audio volume (separate from browser audio)
+  const [chatVolume, setChatVolume] = useLocalStorage("ct_chat_volume", 0.6);
+  const chatAudioRef = useRef(null);
+  useEffect(() => {
+    if (!chatAudioRef.current) return;
+    chatAudioRef.current.volume = chatVolume;
+  }, [chatVolume]);
 
   useEffect(() => {
     if (apiKey) sessionStorage.setItem("hb_api_key", apiKey);
@@ -64,6 +127,7 @@ function App() {
       };
       const res = await axios.post(`${API}/hb/sessions`, payload, { headers });
       setSession(res.data);
+      setShareCode("");
     } catch (err) {
       console.error(err);
       setError(err?.response?.data?.detail || err.message || "Failed to create session");
@@ -80,11 +144,39 @@ function App() {
     try {
       await axios.delete(`${API}/hb/sessions/${session.session_uuid}`, { headers });
     } catch (err) {
-      // Even if remote terminate fails, mark local UI as inactive to avoid stuck state
       console.error(err);
       setError(err?.response?.data?.detail || err.message || "Remote terminate error; marked inactive locally");
     } finally {
       setSession(null);
+      setShareCode("");
+      setLoading(false);
+    }
+  };
+
+  const createShareCode = async () => {
+    if (!session) return;
+    try {
+      const res = await axios.post(`${API}/hb/rooms`, { session_uuid: session.session_uuid }, {});
+      setShareCode(res.data.code);
+      navigator.clipboard?.writeText(res.data.code).catch(() => {});
+    } catch (err) {
+      console.error(err);
+      setError(err?.response?.data?.detail || "Failed to create share code");
+    }
+  };
+
+  const joinByCode = async (e) => {
+    e && e.preventDefault();
+    setLoading(true);
+    setError("");
+    try {
+      const res = await axios.get(`${API}/hb/rooms/${joinCode}`);
+      setSession(res.data);
+      setShareCode(joinCode.toUpperCase());
+    } catch (err) {
+      console.error(err);
+      setError(err?.response?.data?.detail || "Invalid code");
+    } finally {
       setLoading(false);
     }
   };
@@ -108,6 +200,7 @@ function App() {
 
   return (
     <div className="ct-root" style={bgStyle}>
+      <audio ref={chatAudioRef} src="https://cdn.pixabay.com/download/audio/2022/03/15/audio_ade9b8b35e.mp3?filename=ping-notification-180739.mp3" preload="auto" />
       {/* Optional looping video when inactive */}
       {!session && loopVideo ? (
         <video className="ct-bg-video" src={loopVideo} autoPlay muted loop playsInline />
@@ -167,16 +260,31 @@ function App() {
                   {loading ? "Creating..." : "Create Session"}
                 </button>
               ) : (
-                <button className="btn danger" type="button" onClick={terminateSession} disabled={loading}>
-                  {loading ? "Terminating..." : "Terminate"}
-                </button>
+                <>
+                  <button className="btn danger" type="button" onClick={terminateSession} disabled={loading}>
+                    {loading ? "Terminating..." : "Terminate"}
+                  </button>
+                  <button className="btn ghost" type="button" onClick={createShareCode} disabled={loading || !!shareCode}>
+                    {shareCode ? `Code: ${shareCode}` : "Create Share Code"}
+                  </button>
+                </>
               )}
+            </div>
+
+            <div className="ct-row" style={{ marginTop: 10 }}>
+              <div className="ct-field grow">
+                <label>Join by Code</label>
+                <div className="ct-join">
+                  <input value={joinCode} onChange={(e) => setJoinCode(e.target.value.toUpperCase())} placeholder="ABC123" />
+                  <button className="btn primary" onClick={joinByCode} type="button" disabled={loading || !joinCode}>Join</button>
+                </div>
+              </div>
             </div>
 
             {error ? <div className="ct-alert error">{String(error)}</div> : null}
             {session ? (
               <div className="ct-alert success">
-                Session Active • {session.session_uuid}
+                Session Active • {session.session_uuid} {shareCode ? `• Code ${shareCode}` : ""}
               </div>
             ) : null}
           </form>
@@ -212,6 +320,19 @@ function App() {
                 <input value={loopVideo} onChange={(e) => setLoopVideo(e.target.value)} placeholder="https://...mp4" />
               </div>
             </div>
+
+            <div className="ct-row">
+              <div className="ct-field grow">
+                <label>Chat Volume</label>
+                <input type="range" min="0" max="1" step="0.01" value={chatVolume} onChange={(e) => setChatVolume(parseFloat(e.target.value))} />
+                <div className="ct-tiny">{Math.round(chatVolume * 100)}% <button className="btn ghost" style={{height:30}} onClick={() => { chatAudioRef.current?.play(); }}>Test</button></div>
+              </div>
+              <div className="ct-field grow">
+                <label>Browser Volume</label>
+                <input type="range" min="0" max="1" step="0.01" value={1} onChange={() => {}} disabled />
+                <div className="ct-tiny">Coming soon (requires Hyperbeam SDK)</div>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -219,11 +340,11 @@ function App() {
           <div className={`ct-frame ${frameStyle}`}>
             {!session ? (
               <div className="ct-empty">
-                <div>Start a session to launch the shared browser</div>
+                <div>Start a session or join with a code to launch the shared browser</div>
               </div>
             ) : (
               <div className="ct-browser">
-                {/* Using embed_url directly for MVP (SDK adds more control) */}
+                {/* Using embed_url directly for MVP; SDK for richer control will replace this */}
                 <iframe title="Coffee Table" src={session.embed_url} allow="clipboard-read; clipboard-write; autoplay; microphone; camera;" allowFullScreen />
 
                 <div className="ct-overlay">
@@ -233,11 +354,14 @@ function App() {
               </div>
             )}
           </div>
+
+          {/* Chat heads overlay (local-only positioning/resizing per user) */}
+          <DraggableChatHead />
         </section>
       </main>
 
       <footer className="ct-footer">
-        <span>Tip: paste your Hyperbeam API key above and press Create Session</span>
+        <span>Tip: paste your Hyperbeam API key above and press Create Session • Share your code so friends can join</span>
       </footer>
     </div>
   );
