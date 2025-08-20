@@ -73,6 +73,21 @@ function DraggableChatHead({ id = "me", initial = "😀", color = "#8b5cf6", sto
   );
 }
 
+// Mock helpers
+const uuid = () => "mock-" + Math.random().toString(16).slice(2) + Date.now().toString(16);
+const genCode = (n = 6) => {
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  return Array.from({ length: n }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join("");
+};
+const getMockRooms = () => {
+  try { return JSON.parse(localStorage.getItem("ct_mock_rooms") || "{}"); } catch { return {}; }
+};
+const setMockRooms = (obj) => { try { localStorage.setItem("ct_mock_rooms", JSON.stringify(obj)); } catch {} };
+const mockEmbedDataUrl = (title = "Coffee Table Mock Browser") => {
+  const html = `<!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>${title}</title><style>html,body{height:100%;margin:0;background:#0b1020;color:#e5e7eb;font-family:system-ui, -apple-system, Segoe UI, Roboto} .wrap{display:grid;place-items:center;height:100%} .card{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:24px;text-align:center;box-shadow:0 10px 30px rgba(0,0,0,.5);} .pulse{width:12px;height:12px;border-radius:12px;background:#22c55e;display:inline-block;box-shadow:0 0 0 0 rgba(34,197,94,.7);animation:pulse 1.8s infinite;} @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(34,197,94,.7)}70%{box-shadow:0 0 0 18px rgba(34,197,94,0)}100%{box-shadow:0 0 0 0 rgba(34,197,94,0)}} .muted{opacity:.8} </style></head><body><div class="wrap"><div class="card"><div style="font-size:18px;font-weight:800;letter-spacing:.4px;margin-bottom:6px">${title}</div><div class="muted" id="clock"></div><div style="margin-top:10px"><span class="pulse"></span> Connected</div></div></div><script>function tick(){ document.getElementById('clock').textContent=new Date().toLocaleString(); } setInterval(tick,1000); tick();</script></body></html>`;
+  return "data:text/html;base64," + btoa(unescape(encodeURIComponent(html)));
+};
+
 function App() {
   const [apiKey, setApiKey] = useState(() => sessionStorage.getItem("hb_api_key") || "");
   const [startUrl, setStartUrl] = useState("https://www.google.com");
@@ -85,6 +100,7 @@ function App() {
   const [bgImage, setBgImage] = useLocalStorage("ct_bg_image", "");
   const [frameStyle, setFrameStyle] = useLocalStorage("ct_frame_style", "glass");
   const [loopVideo, setLoopVideo] = useLocalStorage("ct_loop_video", "");
+  const [mockMode, setMockMode] = useLocalStorage("ct_mock_mode", false);
   const containerRef = useRef(null);
 
   // share room code
@@ -111,23 +127,33 @@ function App() {
     e && e.preventDefault();
     setLoading(true);
     setError("");
-    if (!apiKey) {
-      setLoading(false);
-      alert("Please paste your Hyperbeam API key");
-      return;
-    }
     try {
-      const payload = {
-        start_url: startUrl,
-        width: Number(size.width) || 1280,
-        height: Number(size.height) || 720,
-        kiosk: true,
-        timeout_absolute: 3600,
-        timeout_inactive: 1800,
-      };
-      const res = await axios.post(`${API}/hb/sessions`, payload, { headers });
-      setSession(res.data);
-      setShareCode("");
+      if (mockMode) {
+        const fake = {
+          session_uuid: uuid(),
+          embed_url: mockEmbedDataUrl(),
+          created_at: new Date().toISOString(),
+          metadata: { width: Number(size.width) || 1280, height: Number(size.height) || 720, start_url: startUrl },
+        };
+        setSession(fake);
+        setShareCode("");
+      } else {
+        if (!apiKey) {
+          alert("Please paste your Hyperbeam API key");
+          return;
+        }
+        const payload = {
+          start_url: startUrl,
+          width: Number(size.width) || 1280,
+          height: Number(size.height) || 720,
+          kiosk: true,
+          timeout_absolute: 3600,
+          timeout_inactive: 1800,
+        };
+        const res = await axios.post(`${API}/hb/sessions`, payload, { headers });
+        setSession(res.data);
+        setShareCode("");
+      }
     } catch (err) {
       console.error(err);
       setError(err?.response?.data?.detail || err.message || "Failed to create session");
@@ -142,7 +168,16 @@ function App() {
     setLoading(true);
     setError("");
     try {
-      await axios.delete(`${API}/hb/sessions/${session.session_uuid}`, { headers });
+      if (mockMode) {
+        // remove any local room mapping tied to shareCode
+        if (shareCode) {
+          const rooms = getMockRooms();
+          delete rooms[shareCode];
+          setMockRooms(rooms);
+        }
+      } else {
+        await axios.delete(`${API}/hb/sessions/${session.session_uuid}`, { headers });
+      }
     } catch (err) {
       console.error(err);
       setError(err?.response?.data?.detail || err.message || "Remote terminate error; marked inactive locally");
@@ -156,9 +191,18 @@ function App() {
   const createShareCode = async () => {
     if (!session) return;
     try {
-      const res = await axios.post(`${API}/hb/rooms`, { session_uuid: session.session_uuid }, {});
-      setShareCode(res.data.code);
-      navigator.clipboard?.writeText(res.data.code).catch(() => {});
+      if (mockMode) {
+        const code = genCode();
+        const rooms = getMockRooms();
+        rooms[code] = session; // store snapshot
+        setMockRooms(rooms);
+        setShareCode(code);
+        navigator.clipboard?.writeText(code).catch(() => {});
+      } else {
+        const res = await axios.post(`${API}/hb/rooms`, { session_uuid: session.session_uuid }, {});
+        setShareCode(res.data.code);
+        navigator.clipboard?.writeText(res.data.code).catch(() => {});
+      }
     } catch (err) {
       console.error(err);
       setError(err?.response?.data?.detail || "Failed to create share code");
@@ -170,12 +214,21 @@ function App() {
     setLoading(true);
     setError("");
     try {
-      const res = await axios.get(`${API}/hb/rooms/${joinCode}`);
-      setSession(res.data);
-      setShareCode(joinCode.toUpperCase());
+      if (mockMode) {
+        const code = joinCode.toUpperCase();
+        const rooms = getMockRooms();
+        const s = rooms[code];
+        if (!s) throw new Error("Invalid code");
+        setSession(s);
+        setShareCode(code);
+      } else {
+        const res = await axios.get(`${API}/hb/rooms/${joinCode}`);
+        setSession(res.data);
+        setShareCode(joinCode.toUpperCase());
+      }
     } catch (err) {
       console.error(err);
-      setError(err?.response?.data?.detail || "Invalid code");
+      setError(err?.response?.data?.detail || err.message || "Invalid code");
     } finally {
       setLoading(false);
     }
@@ -200,6 +253,10 @@ function App() {
 
   return (
     <div className="ct-root" style={bgStyle}>
+      {mockMode && (
+        <div className="ct-banner">Mock Mode is ON — no calls to Hyperbeam; sessions and rooms are simulated.</div>
+      )}
+
       <audio ref={chatAudioRef} src="https://cdn.pixabay.com/download/audio/2022/03/15/audio_ade9b8b35e.mp3?filename=ping-notification-180739.mp3" preload="auto" />
       {/* Optional looping video when inactive */}
       {!session && loopVideo ? (
@@ -218,14 +275,16 @@ function App() {
               <label>Hyperbeam API Key</label>
               <input
                 type="password"
-                value={apiKey}
+                value={mockMode ? "" : apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
-                placeholder="sk_..."
+                placeholder={mockMode ? "Disabled in Mock Mode" : "sk_..."}
                 autoComplete="off"
+                disabled={mockMode}
               />
             </div>
+
             <div className="ct-field">
-              <label>Start URL</label>
+              <label className="ct-label-row">Start URL <span className="ct-badge">Optional</span></label>
               <input
                 type="url"
                 value={startUrl}
@@ -233,6 +292,7 @@ function App() {
                 placeholder="https://www.google.com"
               />
             </div>
+
             <div className="ct-row">
               <div className="ct-field">
                 <label>Width</label>
@@ -254,21 +314,27 @@ function App() {
               </div>
             </div>
 
-            <div className="ct-actions">
-              {!session ? (
-                <button className="btn primary" type="submit" disabled={loading}>
-                  {loading ? "Creating..." : "Create Session"}
-                </button>
-              ) : (
-                <>
-                  <button className="btn danger" type="button" onClick={terminateSession} disabled={loading}>
-                    {loading ? "Terminating..." : "Terminate"}
+            <div className="ct-row ct-split">
+              <div className="ct-toggle">
+                <input id="mockMode" type="checkbox" checked={!!mockMode} onChange={(e) => setMockMode(e.target.checked)} />
+                <label htmlFor="mockMode">Mock Mode</label>
+              </div>
+              <div className="ct-actions">
+                {!session ? (
+                  <button className="btn primary" type="submit" disabled={loading}>
+                    {loading ? "Creating..." : "Create Session"}
                   </button>
-                  <button className="btn ghost" type="button" onClick={createShareCode} disabled={loading || !!shareCode}>
-                    {shareCode ? `Code: ${shareCode}` : "Create Share Code"}
-                  </button>
-                </>
-              )}
+                ) : (
+                  <>
+                    <button className="btn danger" type="button" onClick={terminateSession} disabled={loading}>
+                      {loading ? "Terminating..." : "Terminate"}
+                    </button>
+                    <button className="btn ghost" type="button" onClick={createShareCode} disabled={loading || !!shareCode}>
+                      {shareCode ? `Code: ${shareCode}` : "Create Share Code"}
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
 
             <div className="ct-row" style={{ marginTop: 10 }}>
@@ -344,13 +410,15 @@ function App() {
               </div>
             ) : (
               <div className="ct-browser">
-                {/* Using embed_url directly for MVP; SDK for richer control will replace this */}
+                {/* In Mock Mode we use a data URL; in real mode, Hyperbeam embed_url */}
                 <iframe title="Coffee Table" src={session.embed_url} allow="clipboard-read; clipboard-write; autoplay; microphone; camera;" allowFullScreen />
 
                 <div className="ct-overlay">
                   <button className="btn ghost" onClick={enterFullscreen}>Fullscreen</button>
                   <a className="btn ghost" href={session.embed_url} target="_blank" rel="noreferrer">Open Tab</a>
                 </div>
+
+                {mockMode && <div className="ct-mock-label">MOCK</div>}
               </div>
             )}
           </div>
@@ -361,7 +429,7 @@ function App() {
       </main>
 
       <footer className="ct-footer">
-        <span>Tip: paste your Hyperbeam API key above and press Create Session • Share your code so friends can join</span>
+        <span>Tip: {mockMode ? "Mock Mode: no Hyperbeam required" : "Paste your Hyperbeam API key above and press Create Session"} • Share your code so friends can join</span>
       </footer>
     </div>
   );
