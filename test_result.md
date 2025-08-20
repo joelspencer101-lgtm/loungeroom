@@ -148,11 +148,11 @@
 ## frontend:
   - task: "MVP UI: API key, create/terminate, embed iframe, customization"
     implemented: true
-    working: true
+    working: false
     file: "/app/frontend/src/App.js"
-    stuck_count: 0
+    stuck_count: 1
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       -working: true
       -agent: "main"
@@ -163,6 +163,9 @@
       -working: true
       -agent: "main"
       -comment: "Fixed terminate flow (always clear local session in finally). Added share rooms and chat head overlay."
+      -working: false
+      -agent: "testing"
+      -comment: "CRITICAL: Session creation fails with Hyperbeam 'err_exceeded_vm_limit' error, blocking all session-dependent features (share room, join by code, terminate). UI components work: ✅ App loads correctly ✅ Chat head overlay present and draggable ✅ Join by code UI functional ✅ Customization features work. Core session functionality blocked by API limit."
   - task: "Styling"
     implemented: true
     working: true
