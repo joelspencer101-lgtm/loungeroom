@@ -186,10 +186,9 @@
 
 ## test_plan:
   current_focus:
-    - "Frontend: verify MVP flows + share room + join by code + chat head overlay + terminate flow"
-    - "Backend: verify rooms endpoints"
+    - "Hyperbeam API plan upgrade needed - VM limit exceeded"
   stuck_tasks:
-    - "None"
+    - "MVP UI: API key, create/terminate, embed iframe, customization"
   test_all: false
   test_priority: "high_first"
 
