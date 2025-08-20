@@ -1,34 +1,75 @@
-.App-logo {
-    height: 40vmin;
-    pointer-events: none;
+:root {
+  --bg1: #0f172a;
+  --bg2: #1e293b;
+  --primary: #7c3aed;
+  --primary-600: #6d28d9;
+  --danger: #ef4444;
+  --muted: #94a3b8;
+  --glass: rgba(255,255,255,0.08);
 }
 
-@media (prefers-reduced-motion: no-preference) {
-    .App-logo {
-        animation: App-logo-spin infinite 20s linear;
-    }
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; }
+body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica Neue, Arial, "Apple Color Emoji", "Segoe UI Emoji"; }
+
+.ct-root {
+  min-height: 100vh;
+  background: radial-gradient(1000px 600px at 20% -10%, #201f42 0%, transparent 70%),
+              radial-gradient(800px 400px at 100% 0%, #2b194f 0%, transparent 70%),
+              linear-gradient(180deg, var(--bg1) 0%, var(--bg2) 100%);
+  color: #e5e7eb;
+  padding-bottom: 24px;
+  position: relative;
 }
 
-.App-header {
-    background-color: #0f0f10;
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    font-size: calc(10px + 2vmin);
-    color: white;
+.ct-bg-video {
+  position: fixed; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0.15; pointer-events: none; z-index: 0;
 }
 
-.App-link {
-    color: #61dafb;
-}
+.ct-header { text-align: center; padding: 28px 16px 8px; position: relative; z-index: 1; }
+.ct-title { font-size: 28px; font-weight: 800; letter-spacing: 0.2px; }
+.ct-sub { font-size: 14px; color: var(--muted); margin-top: 6px; }
 
-@keyframes App-logo-spin {
-    from {
-        transform: rotate(0deg);
-    }
-    to {
-        transform: rotate(360deg);
-    }
-}
+.ct-main { display: grid; grid-template-columns: 380px 1fr; gap: 20px; padding: 12px 16px; max-width: 1300px; margin: 0 auto; position: relative; z-index: 1; }
+@media (max-width: 980px) { .ct-main { grid-template-columns: 1fr; } }
+
+.ct-panel { backdrop-filter: saturate(140%) blur(6px); background: rgba(15,23,42,0.6); border: 1px solid rgba(148,163,184,0.12); border-radius: 16px; padding: 16px; }
+
+.ct-form .ct-field { display: flex; flex-direction: column; margin-bottom: 12px; }
+.ct-form .ct-field label { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+.ct-form .ct-field input, .ct-form .ct-field select { background: rgba(2,6,23,0.6); color: #e5e7eb; border: 1px solid rgba(148,163,184,0.18); border-radius: 10px; height: 42px; padding: 0 12px; outline: none; }
+.ct-form .ct-field input:focus, .ct-form .ct-field select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.25); }
+
+.ct-row { display: flex; gap: 12px; }
+.ct-row .grow { flex: 1; }
+
+.ct-actions { margin-top: 8px; display: flex; gap: 10px; }
+
+.btn { height: 42px; border-radius: 10px; border: 1px solid transparent; padding: 0 14px; font-weight: 700; cursor: pointer; }
+.btn.primary { background: var(--primary); color: white; }
+.btn.primary:hover { background: var(--primary-600); }
+.btn.danger { background: var(--danger); color: white; }
+.btn.ghost { background: rgba(255,255,255,0.08); color: #e5e7eb; border-color: rgba(255,255,255,0.14); }
+.btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.ct-alert { margin-top: 10px; border-radius: 10px; padding: 10px 12px; font-size: 13px; }
+.ct-alert.error { background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.35); color: #fecaca; }
+.ct-alert.success { background: rgba(16,185,129,0.12); border: 1px solid rgba(16,185,129,0.35); color: #bbf7d0; }
+
+.ct-customize { margin-top: 16px; border-top: 1px dashed rgba(148,163,184,0.18); padding-top: 12px; }
+.ct-custom-title { font-size: 12px; color: var(--muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; }
+
+.ct-stage { position: relative; }
+.ct-frame { position: relative; border-radius: 16px; min-height: 320px; }
+.ct-frame.glass { background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02)); border: 1px solid rgba(255,255,255,0.12); }
+.ct-frame.shadow { background: rgba(2,6,23,0.75); box-shadow: 0 20px 50px rgba(0,0,0,0.5); }
+.ct-frame.plain { background: rgba(2,6,23,0.9); }
+
+.ct-empty { display: grid; place-items: center; padding: 48px 16px; color: var(--muted); }
+
+.ct-browser { position: relative; }
+.ct-browser iframe { width: 100%; height: min(70vh, 760px); border: 0; border-radius: 16px; background: #0b1020; }
+
+.ct-overlay { position: absolute; right: 12px; bottom: 12px; display: flex; gap: 8px; }
+
+.ct-footer { text-align: center; color: var(--muted); margin-top: 16px; font-size: 12px; }
