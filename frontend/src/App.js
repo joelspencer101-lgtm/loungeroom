@@ -79,11 +79,12 @@ function App() {
     setError("");
     try {
       await axios.delete(`${API}/hb/sessions/${session.session_uuid}`, { headers });
-      setSession(null);
     } catch (err) {
+      // Even if remote terminate fails, mark local UI as inactive to avoid stuck state
       console.error(err);
-      setError(err?.response?.data?.detail || err.message || "Failed to terminate");
+      setError(err?.response?.data?.detail || err.message || "Remote terminate error; marked inactive locally");
     } finally {
+      setSession(null);
       setLoading(false);
     }
   };
