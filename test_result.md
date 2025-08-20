@@ -134,15 +134,18 @@
 ## frontend:
   - task: "MVP UI: API key, create/terminate, embed iframe, customization"
     implemented: true
-    working: "NA"
+    working: false
     file: "/app/frontend/src/App.js"
-    stuck_count: 0
+    stuck_count: 1
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       -working: true
       -agent: "main"
       -comment: "Uses REACT_APP_BACKEND_URL + '/api', sleek UI, fullscreen, looping video background when inactive. Ready for automated frontend testing."
+      -working: false
+      -agent: "testing"
+      -comment: "Comprehensive UI testing completed. WORKING: App loads correctly with 'Coffee Table' header, form elements present (API key input type=password, URL input, width/height selects), session creation successful with iframe and overlay buttons, background customization works. CRITICAL ISSUE: Terminate flow fails - session state not properly cleared after termination, Create Session button doesn't return, success alert persists. Minor: Hyperbeam iframe deprecation warnings (expected), video load network error (not app issue)."
   - task: "Styling"
     implemented: true
     working: true
