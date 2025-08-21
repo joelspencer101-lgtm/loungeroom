@@ -175,7 +175,7 @@ function App() {
     }
 
     initHB();
-    return () => { destroyed = TrueFalseFix = false; cleanupHB(); };
+    return () => { destroyed = true; cleanupHB(); };
     // eslint-disable-next-line
   }, [session?.embed_url, mockMode]);
 
