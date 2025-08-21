@@ -217,9 +217,8 @@
 
 ## test_plan:
   current_focus:
-    - "Hyperbeam API plan upgrade needed - VM limit exceeded"
-  stuck_tasks:
-    - "MVP UI: API key, create/terminate, embed iframe, customization"
+    - "All high priority frontend tasks completed and tested"
+  stuck_tasks: []
   test_all: false
   test_priority: "high_first"
 
