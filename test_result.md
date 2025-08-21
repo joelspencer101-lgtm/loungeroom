@@ -171,15 +171,18 @@
       -comment: "Added Mock Mode that simulates sessions/rooms locally. Ready to re-test end-to-end UI flows without Hyperbeam."
   - task: "Mock Mode flows (create/share/join/terminate)"
     implemented: true
-    working: "NA"
+    working: true
     file: "/app/frontend/src/App.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       -working: true
       -agent: "main"
       -comment: "Implemented Mock Mode with data URL browser, local room codes in localStorage, banner/labels, and disabled key input while mock is enabled."
+      -working: true
+      -agent: "testing"
+      -comment: "COMPREHENSIVE TESTING COMPLETED: All Mock Mode flows work perfectly. ✅ Mock Mode toggle and banner ✅ Session creation with iframe and MOCK label ✅ Share code creation and capture (e.g., ZCSOF9) ✅ Session termination and rejoin flows ✅ Chat head positioning and draggable setup ✅ API key input disabled/enabled correctly ✅ All UI interactions function as expected. Mock Mode provides excellent fallback for testing without Hyperbeam API limits."
   - task: "Hyperbeam SDK + Browser Volume (fallback-safe)"
     implemented: true
     working: "NA"
