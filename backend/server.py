@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Header, Depends
+from fastapi import FastAPI, APIRouter, HTTPException, Header, Depends, WebSocket, WebSocketDisconnect
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -7,12 +7,13 @@ import os
 import logging
 from pathlib import Path
 from pydantic import BaseModel, Field
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Set
 import uuid
 from datetime import datetime, timezone
 import requests
 import random
 import string
+import json
 
 
 ROOT_DIR = Path(__file__).parent
@@ -266,6 +267,87 @@ async def get_room_session(code: str):
         created_at=sess["created_at"],
         metadata=sess.get("metadata", {}),
     )
+
+# -------------------------------------------------------------------------------------
+# WebSocket: presence + chat per room code
+# -------------------------------------------------------------------------------------
+class RoomManager:
+    def __init__(self) -> None:
+        self.rooms: Dict[str, Set[WebSocket]] = {}
+        self.ident: Dict[WebSocket, Dict[str, Any]] = {}
+
+    async def connect(self, code: str, websocket: WebSocket):
+        await websocket.accept()
+        self.rooms.setdefault(code, set()).add(websocket)
+
+    def disconnect(self, code: str, websocket: WebSocket):
+        try:
+            self.rooms.get(code, set()).discard(websocket)
+            self.ident.pop(websocket, None)
+            if not self.rooms.get(code):
+                self.rooms.pop(code, None)
+        except Exception:
+            pass
+
+    async def broadcast(self, code: str, message: Dict[str, Any]):
+        data = json.dumps(message)
+        for ws in list(self.rooms.get(code, set())):
+            try:
+                await ws.send_text(data)
+            except Exception:
+                # drop broken connection silently
+                self.disconnect(code, ws)
+
+manager = RoomManager()
+
+@hb_router.websocket("/ws/room/{code}")
+async def ws_room(websocket: WebSocket, code: str):
+    # Optionally, validate room code exists but allow ad-hoc for MVP
+    await manager.connect(code, websocket)
+    try:
+        # Expect first message to be an identify payload
+        # {"type":"hello","user":{"id":...,"name":...,"color":...}}
+        raw = await websocket.receive_text()
+        try:
+            init = json.loads(raw)
+        except Exception:
+            init = {}
+        if isinstance(init, dict) and init.get("type") == "hello":
+            manager.ident[websocket] = init.get("user", {})
+            # announce join
+            await manager.broadcast(code, {"type": "presence", "event": "join", "user": manager.ident[websocket], "ts": now_iso()})
+        else:
+            manager.ident[websocket] = {"id": str(uuid.uuid4())}
+
+        # Main loop
+        while True:
+            msg = await websocket.receive_text()
+            try:
+                payload = json.loads(msg)
+            except Exception:
+                continue
+            mtype = payload.get("type")
+            if mtype == "ping":
+                await websocket.send_text(json.dumps({"type": "pong", "ts": now_iso()}))
+                continue
+            if mtype in ("chat", "presence"):
+                # attach user
+                payload["user"] = manager.ident.get(websocket, {})
+                payload.setdefault("ts", now_iso())
+                await manager.broadcast(code, payload)
+    except WebSocketDisconnect:
+        pass
+    except Exception:
+        logging.exception("WebSocket error")
+    finally:
+        user = manager.ident.get(websocket)
+        manager.disconnect(code, websocket)
+        if user:
+            # announce leave
+            try:
+                await manager.broadcast(code, {"type": "presence", "event": "leave", "user": user, "ts": now_iso()})
+            except Exception:
+                pass
 
 # Include routers in the main app
 app.include_router(api_router)

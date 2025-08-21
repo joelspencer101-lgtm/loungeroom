@@ -1,9 +1,14 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "./App.css";
 import axios from "axios";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
+
+function wsUrlFromHttp(base, path) {
+  if (!base) return path; // fallback
+  return base.replace(/^http/, "ws") + path;
+}
 
 function useLocalStorage(key, initialValue) {
   const [value, setValue] = useState(() => {
@@ -22,13 +27,19 @@ function useLocalStorage(key, initialValue) {
   return [value, setValue];
 }
 
-function DraggableChatHead({ id = "me", initial = "😀", color = "#8b5cf6", storageKey = "ct_chat_head" }) {
+function DraggableChatHead({ id = "me", initial = "😀", color = "#8b5cf6", storageKey = "ct_chat_head", value, onChange }) {
   const rootRef = useRef(null);
-  const [pos, setPos] = useLocalStorage(`${storageKey}_pos`, { x: 24, y: 24 });
-  const [size, setSize] = useLocalStorage(`${storageKey}_size`, 64);
+  const [pos, setPos] = useLocalStorage(`${storageKey}_pos`, value?.pos || { x: 24, y: 24 });
+  const [size, setSize] = useLocalStorage(`${storageKey}_size`, value?.size || 64);
   const dragging = useRef(false);
   const resizing = useRef(false);
   const start = useRef({ x: 0, y: 0, px: 0, py: 0, s: 0 });
+
+  useEffect(() => {
+    if (value?.pos) setPos(value.pos);
+    if (value?.size) setSize(value.size);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value?.pos?.x, value?.pos?.y, value?.size]);
 
   useEffect(() => {
     const el = rootRef.current;
@@ -46,8 +57,13 @@ function DraggableChatHead({ id = "me", initial = "😀", color = "#8b5cf6", sto
       if (!dragging.current && !resizing.current) return;
       const dx = e.clientX - start.current.x;
       const dy = e.clientY - start.current.y;
-      if (dragging.current) setPos({ x: Math.max(0, start.current.px + dx), y: Math.max(0, start.current.py + dy) });
-      if (resizing.current) setSize(Math.max(48, Math.min(200, start.current.s + dx)));
+      let nextPos = pos;
+      let nextSize = size;
+      if (dragging.current) nextPos = { x: Math.max(0, start.current.px + dx), y: Math.max(0, start.current.py + dy) };
+      if (resizing.current) nextSize = Math.max(48, Math.min(200, start.current.s + dx));
+      setPos(nextPos);
+      setSize(nextSize);
+      onChange?.({ pos: nextPos, size: nextSize });
     };
     const onPointerUp = (e) => {
       dragging.current = false; resizing.current = false;
@@ -61,7 +77,7 @@ function DraggableChatHead({ id = "me", initial = "😀", color = "#8b5cf6", sto
       window.removeEventListener("pointermove", onPointerMove);
       window.removeEventListener("pointerup", onPointerUp);
     };
-  }, [pos, size, setPos, setSize]);
+  }, [pos, size, onChange]);
 
   return (
     <div ref={rootRef} className="ct-chat-head" style={{ left: pos.x, top: pos.y, width: size, height: size, background: color }}>
@@ -74,7 +90,7 @@ function DraggableChatHead({ id = "me", initial = "😀", color = "#8b5cf6", sto
 }
 
 // Mock helpers
-const uuid = () => "mock-" + Math.random().toString(16).slice(2) + Date.now().toString(16);
+const uuid = () => "u-" + Math.random().toString(16).slice(2) + Date.now().toString(16);
 const genCode = (n = 6) => {
   const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
   return Array.from({ length: n }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join("");
@@ -89,14 +105,22 @@ const mockEmbedDataUrl = (title = "Coffee Table Mock Browser") => {
 };
 
 function App() {
+  // user profile
+  const [user] = useLocalStorage("ct_user", () => {
+    const id = uuid();
+    const initials = ["😀", "🙂", "🤠", "🦊", "🐼", "🐧", "🦄", "🐶"][Math.floor(Math.random()*8)];
+    const color = ["#8b5cf6", "#06b6d4", "#f59e0b", "#ef4444", "#22c55e"][Math.floor(Math.random()*5)];
+    return { id, initial: initials, color };
+  });
+
   const [apiKey, setApiKey] = useState(() => sessionStorage.getItem("hb_api_key") || "");
   const [startUrl, setStartUrl] = useState("https://www.google.com");
   const [size, setSize] = useState({ width: 1280, height: 720 });
-  const [session, setSession] = useState(null); // { session_uuid, embed_url, created_at, metadata }
+  const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const [bgType, setBgType] = useLocalStorage("ct_bg_type", "gradient"); // gradient | image
+  const [bgType, setBgType] = useLocalStorage("ct_bg_type", "gradient");
   const [bgImage, setBgImage] = useLocalStorage("ct_bg_image", "");
   const [frameStyle, setFrameStyle] = useLocalStorage("ct_frame_style", "glass");
   const [loopVideo, setLoopVideo] = useLocalStorage("ct_loop_video", "");
@@ -115,81 +139,100 @@ function App() {
   const [shareCode, setShareCode] = useState("");
   const [joinCode, setJoinCode] = useState("");
 
+  // presence & chat via WebSocket
+  const [wsConnected, setWsConnected] = useState(false);
+  const wsRef = useRef(null);
+  const [messages, setMessages] = useState([]);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [others, setOthers] = useState({}); // userId -> {initial,color,pos,size}
+
   // chat audio volume (separate from browser audio)
   const [chatVolume, setChatVolume] = useLocalStorage("ct_chat_volume", 0.6);
   const chatAudioRef = useRef(null);
-  useEffect(() => {
-    if (!chatAudioRef.current) return;
-    chatAudioRef.current.volume = chatVolume;
-  }, [chatVolume]);
+  useEffect(() => { if (chatAudioRef.current) chatAudioRef.current.volume = chatVolume; }, [chatVolume]);
 
-  useEffect(() => {
-    if (apiKey) sessionStorage.setItem("hb_api_key", apiKey);
-  }, [apiKey]);
+  useEffect(() => { if (apiKey) sessionStorage.setItem("hb_api_key", apiKey); }, [apiKey]);
 
-  const headers = useMemo(() => ({
-    Authorization: `Bearer ${apiKey}`,
-  }), [apiKey]);
+  const headers = useMemo(() => ({ Authorization: `Bearer ${apiKey}` }), [apiKey]);
 
   // Initialize Hyperbeam SDK when session active in real mode
   useEffect(() => {
     let destroyed = false;
 
     async function initHB() {
-      if (!session || mockMode) {
-        cleanupHB();
-        return;
-      }
+      if (!session || mockMode) { cleanupHB(); return; }
       setHbReady(false);
       setHbFallbackIframe(false);
       try {
         const mod = await import("@hyperbeam/web");
         const Hyperbeam = mod.default || mod;
         if (!hbMountRef.current) return;
-        // Destroy existing
-        if (hbClientRef.current) {
-          try { hbClientRef.current.destroy(); } catch {}
-          hbClientRef.current = null;
-        }
-        const client = await Hyperbeam(hbMountRef.current, session.embed_url, {
-          volume: browserVolume,
-          timeout: 15000,
-          delegateKeyboard: true,
-        });
-        if (destroyed) {
-          try { client.destroy(); } catch {}
-          return;
-        }
-        hbClientRef.current = client;
-        setHbReady(true);
-      } catch (e) {
-        console.error("Hyperbeam SDK failed, falling back to iframe", e);
-        setHbFallbackIframe(true);
-      }
+        if (hbClientRef.current) { try { hbClientRef.current.destroy(); } catch {} hbClientRef.current = null; }
+        const client = await Hyperbeam(hbMountRef.current, session.embed_url, { volume: browserVolume, timeout: 15000, delegateKeyboard: true });
+        if (destroyed) { try { client.destroy(); } catch {} return; }
+        hbClientRef.current = client; setHbReady(true);
+      } catch (e) { console.error("HB SDK failed", e); setHbFallbackIframe(true); }
     }
 
     initHB();
-    return () => {
-      destroyed = true;
-      cleanupHB();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => { destroyed = TrueFalseFix = false; cleanupHB(); };
+    // eslint-disable-next-line
   }, [session?.embed_url, mockMode]);
 
-  // Keep browser volume in sync
-  useEffect(() => {
-    if (hbClientRef.current) {
-      try { hbClientRef.current.volume = browserVolume; } catch {}
-    }
-  }, [browserVolume]);
+  useEffect(() => { if (hbClientRef.current) { try { hbClientRef.current.volume = browserVolume; } catch {} } }, [browserVolume]);
 
-  function cleanupHB() {
-    if (hbClientRef.current) {
-      try { hbClientRef.current.destroy(); } catch {}
-      hbClientRef.current = null;
-    }
-    setHbReady(false);
-  }
+  function cleanupHB() { if (hbClientRef.current) { try { hbClientRef.current.destroy(); } catch {} hbClientRef.current = null; } setHbReady(false); }
+
+  // WebSocket connect/disconnect when shareCode available and session active
+  const connectWS = useCallback(() => {
+    if (!session || !shareCode) return;
+    if (wsRef.current) return;
+    const url = wsUrlFromHttp(BACKEND_URL, `/api/hb/ws/room/${shareCode}`);
+    const ws = new WebSocket(url);
+    wsRef.current = ws;
+    ws.onopen = () => {
+      setWsConnected(true);
+      ws.send(JSON.stringify({ type: "hello", user }));
+    };
+    ws.onmessage = (ev) => {
+      try {
+        const data = JSON.parse(ev.data);
+        if (data.type === "chat") {
+          setMessages((m) => [...m, data]);
+          if (data.user?.id !== user.id) chatAudioRef.current?.play().catch(() => {});
+        }
+        if (data.type === "presence") {
+          if (data.event === "leave") {
+            setOthers((o) => { const c = { ...o }; if (data.user?.id) delete c[data.user.id]; return c; });
+          } else if (data.head && data.user?.id && data.user.id !== user.id) {
+            setOthers((o) => ({ ...o, [data.user.id]: { initial: data.user.initial, color: data.user.color, pos: data.head.pos, size: data.head.size } }));
+          } else if (data.event === "join" && data.user?.id && data.user.id !== user.id) {
+            setOthers((o) => ({ ...o, [data.user.id]: { initial: data.user.initial, color: data.user.color, pos: { x: 24, y: 24 }, size: 64 } }));
+          }
+        }
+      } catch {}
+    };
+    ws.onclose = () => { setWsConnected(false); wsRef.current = null; setOthers({}); };
+    ws.onerror = () => { setWsConnected(false); };
+  }, [session, shareCode, user]);
+
+  const disconnectWS = useCallback(() => { try { wsRef.current?.close(); } catch {} wsRef.current = null; setWsConnected(false); setOthers({}); }, []);
+
+  // Auto-connect when we have session + shareCode
+  useEffect(() => { if (session && shareCode) connectWS(); else disconnectWS(); }, [session, shareCode, connectWS, disconnectWS]);
+
+  const sendPresence = useCallback((head) => {
+    if (!wsRef.current) return;
+    const payload = { type: "presence", head };
+    try { wsRef.current.send(JSON.stringify(payload)); } catch {}
+  }, []);
+
+  const sendChat = useCallback((text) => {
+    if (!wsRef.current || !text?.trim()) return;
+    try { wsRef.current.send(JSON.stringify({ type: "chat", text: text.trim() })); } catch {}
+  }, []);
+
+  const [chatText, setChatText] = useState("");
 
   const createSession = async (e) => {
     e && e.preventDefault();
@@ -197,139 +240,55 @@ function App() {
     setError("");
     try {
       if (mockMode) {
-        const fake = {
-          session_uuid: uuid(),
-          embed_url: mockEmbedDataUrl(),
-          created_at: new Date().toISOString(),
-          metadata: { width: Number(size.width) || 1280, height: Number(size.height) || 720, start_url: startUrl },
-        };
-        setSession(fake);
-        setShareCode("");
+        const fake = { session_uuid: uuid(), embed_url: mockEmbedDataUrl(), created_at: new Date().toISOString(), metadata: { width: Number(size.width) || 1280, height: Number(size.height) || 720, start_url: startUrl } };
+        setSession(fake); setShareCode("");
       } else {
-        if (!apiKey) {
-          alert("Please paste your Hyperbeam API key");
-          return;
-        }
-        const payload = {
-          start_url: startUrl,
-          width: Number(size.width) || 1280,
-          height: Number(size.height) || 720,
-          kiosk: true,
-          timeout_absolute: 3600,
-          timeout_inactive: 1800,
-        };
+        if (!apiKey) { alert("Please paste your Hyperbeam API key"); return; }
+        const payload = { start_url: startUrl, width: Number(size.width) || 1280, height: Number(size.height) || 720, kiosk: true, timeout_absolute: 3600, timeout_inactive: 1800 };
         const res = await axios.post(`${API}/hb/sessions`, payload, { headers });
-        setSession(res.data);
-        setShareCode("");
+        setSession(res.data); setShareCode("");
       }
-    } catch (err) {
-      console.error(err);
-      setError(err?.response?.data?.detail || err.message || "Failed to create session");
-    } finally {
-      setLoading(false);
-    }
+    } catch (err) { console.error(err); setError(err?.response?.data?.detail || err.message || "Failed to create session"); }
+    finally { setLoading(false); }
   };
 
   const terminateSession = async () => {
-    if (!session) return;
-    if (!window.confirm("Terminate this session?")) return;
-    setLoading(true);
-    setError("");
+    if (!session) return; if (!window.confirm("Terminate this session?")) return;
+    setLoading(true); setError("");
     try {
-      if (mockMode) {
-        if (shareCode) {
-          const rooms = getMockRooms();
-          delete rooms[shareCode];
-          setMockRooms(rooms);
-        }
-      } else {
-        await axios.delete(`${API}/hb/sessions/${session.session_uuid}`, { headers });
-      }
-    } catch (err) {
-      console.error(err);
-      setError(err?.response?.data?.detail || err.message || "Remote terminate error; marked inactive locally");
-    } finally {
-      cleanupHB();
-      setSession(null);
-      setShareCode("");
-      setLoading(false);
-    }
+      if (mockMode) { if (shareCode) { const rooms = getMockRooms(); delete rooms[shareCode]; setMockRooms(rooms); } }
+      else { await axios.delete(`${API}/hb/sessions/${session.session_uuid}`, { headers }); }
+    } catch (err) { console.error(err); setError(err?.response?.data?.detail || err.message || "Remote terminate error; marked inactive locally"); }
+    finally { cleanupHB(); setSession(null); setShareCode(""); disconnectWS(); setLoading(false); }
   };
 
   const createShareCode = async () => {
     if (!session) return;
     try {
-      if (mockMode) {
-        const code = genCode();
-        const rooms = getMockRooms();
-        rooms[code] = session; // store snapshot
-        setMockRooms(rooms);
-        setShareCode(code);
-        navigator.clipboard?.writeText(code).catch(() => {});
-      } else {
-        const res = await axios.post(`${API}/hb/rooms`, { session_uuid: session.session_uuid }, {});
-        setShareCode(res.data.code);
-        navigator.clipboard?.writeText(res.data.code).catch(() => {});
-      }
-    } catch (err) {
-      console.error(err);
-      setError(err?.response?.data?.detail || "Failed to create share code");
-    }
+      if (mockMode) { const code = genCode(); const rooms = getMockRooms(); rooms[code] = session; setMockRooms(rooms); setShareCode(code); navigator.clipboard?.writeText(code).catch(() => {}); }
+      else { const res = await axios.post(`${API}/hb/rooms`, { session_uuid: session.session_uuid }, {}); setShareCode(res.data.code); navigator.clipboard?.writeText(res.data.code).catch(() => {}); }
+    } catch (err) { console.error(err); setError(err?.response?.data?.detail || "Failed to create share code"); }
   };
 
   const joinByCode = async (e) => {
-    e && e.preventDefault();
-    setLoading(true);
-    setError("");
+    e && e.preventDefault(); setLoading(TrueFalseFix2 = true); setError("");
     try {
-      if (mockMode) {
-        const code = joinCode.toUpperCase();
-        const rooms = getMockRooms();
-        const s = rooms[code];
-        if (!s) throw new Error("Invalid code");
-        setSession(s);
-        setShareCode(code);
-      } else {
-        const res = await axios.get(`${API}/hb/rooms/${joinCode}`);
-        setSession(res.data);
-        setShareCode(joinCode.toUpperCase());
-      }
-    } catch (err) {
-      console.error(err);
-      setError(err?.response?.data?.detail || err.message || "Invalid code");
-    } finally {
-      setLoading(false);
-    }
+      if (mockMode) { const code = joinCode.toUpperCase(); const rooms = getMockRooms(); const s = rooms[code]; if (!s) throw new Error("Invalid code"); setSession(s); setShareCode(code); }
+      else { const res = await axios.get(`${API}/hb/rooms/${joinCode}`); setSession(res.data); setShareCode(joinCode.toUpperCase()); }
+    } catch (err) { console.error(err); setError(err?.response?.data?.detail || err.message || "Invalid code"); }
+    finally { setLoading(false); }
   };
 
-  const enterFullscreen = () => {
-    const el = containerRef.current;
-    if (!el) return;
-    if (document.fullscreenElement) {
-      document.exitFullscreen?.();
-    } else {
-      el.requestFullscreen?.();
-    }
-  };
+  const enterFullscreen = () => { const el = containerRef.current; if (!el) return; if (document.fullscreenElement) { document.exitFullscreen?.(); } else { el.requestFullscreen?.(); } };
 
-  const bgStyle = useMemo(() => {
-    if (bgType === "image" && bgImage) {
-      return { backgroundImage: `url(${bgImage})`, backgroundSize: "cover", backgroundPosition: "center" };
-    }
-    return {};
-  }, [bgType, bgImage]);
+  const bgStyle = useMemo(() => (bgType === "image" && bgImage ? { backgroundImage: `url(${bgImage})`, backgroundSize: "cover", backgroundPosition: "center" } : {}), [bgType, bgImage]);
 
   return (
     <div className="ct-root" style={bgStyle}>
-      {mockMode && (
-        <div className="ct-banner">Mock Mode is ON — no calls to Hyperbeam; sessions and rooms are simulated.</div>
-      )}
+      {mockMode && (<div className="ct-banner">Mock Mode is ON — no calls to Hyperbeam; sessions and rooms are simulated.</div>)}
 
       <audio ref={chatAudioRef} src="https://cdn.pixabay.com/download/audio/2022/03/15/audio_ade9b8b35e.mp3?filename=ping-notification-180739.mp3" preload="auto" />
-      {/* Optional looping video when inactive */}
-      {!session && loopVideo ? (
-        <video className="ct-bg-video" src={loopVideo} autoPlay muted loop playsInline />
-      ) : null}
+      {!session && loopVideo ? (<video className="ct-bg-video" src={loopVideo} autoPlay muted loop playsInline />) : null}
 
       <header className="ct-header">
         <div className="ct-title">Coffee Table</div>
@@ -341,24 +300,12 @@ function App() {
           <form onSubmit={createSession} className="ct-form">
             <div className="ct-field">
               <label>Hyperbeam API Key</label>
-              <input
-                type="password"
-                value={mockMode ? "" : apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-                placeholder={mockMode ? "Disabled in Mock Mode" : "sk_..."}
-                autoComplete="off"
-                disabled={mockMode}
-              />
+              <input type="password" value={mockMode ? "" : apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder={mockMode ? "Disabled in Mock Mode" : "sk_..."} autoComplete="off" disabled={mockMode} />
             </div>
 
             <div className="ct-field">
               <label className="ct-label-row">Start URL <span className="ct-badge">Optional</span></label>
-              <input
-                type="url"
-                value={startUrl}
-                onChange={(e) => setStartUrl(e.target.value)}
-                placeholder="https://www.google.com"
-              />
+              <input type="url" value={startUrl} onChange={(e) => setStartUrl(e.target.value)} placeholder="https://www.google.com" />
             </div>
 
             <div className="ct-row">
@@ -389,17 +336,11 @@ function App() {
               </div>
               <div className="ct-actions">
                 {!session ? (
-                  <button className="btn primary" type="submit" disabled={loading}>
-                    {loading ? "Creating..." : "Create Session"}
-                  </button>
+                  <button className="btn primary" type="submit" disabled={loading}>{loading ? "Creating..." : "Create Session"}</button>
                 ) : (
                   <>
-                    <button className="btn danger" type="button" onClick={terminateSession} disabled={loading}>
-                      {loading ? "Terminating..." : "Terminate"}
-                    </button>
-                    <button className="btn ghost" type="button" onClick={createShareCode} disabled={loading || !!shareCode}>
-                      {shareCode ? `Code: ${shareCode}` : "Create Share Code"}
-                    </button>
+                    <button className="btn danger" type="button" onClick={terminateSession} disabled={loading}>{loading ? "Terminating..." : "Terminate"}</button>
+                    <button className="btn ghost" type="button" onClick={createShareCode} disabled={loading || !!shareCode}>{shareCode ? `Code: ${shareCode}` : "Create Share Code"}</button>
                   </>
                 )}
               </div>
@@ -417,9 +358,7 @@ function App() {
 
             {error ? <div className="ct-alert error">{String(error)}</div> : null}
             {session ? (
-              <div className="ct-alert success">
-                Session Active • {session.session_uuid} {shareCode ? `• Code ${shareCode}` : ""}
-              </div>
+              <div className="ct-alert success">Session Active • {session.session_uuid} {shareCode ? `• Code ${shareCode}` : ""} {wsConnected ? "• Live" : ""}</div>
             ) : null}
           </form>
 
@@ -492,8 +431,35 @@ function App() {
             )}
           </div>
 
-          {/* Chat heads overlay (local-only positioning/resizing per user) */}
-          <DraggableChatHead />
+          {/* Chat heads overlay */}
+          <DraggableChatHead id={user.id} initial={user.initial} color={user.color} onChange={(head) => sendPresence({ ...head })} />
+          {Object.entries(others).map(([uid, cfg]) => (
+            <DraggableChatHead key={uid} id={uid} initial={cfg.initial} color={cfg.color} value={{ pos: cfg.pos, size: cfg.size }} onChange={() => {}} storageKey={`ct_chat_head_${uid}`} />
+          ))}
+
+          {/* Chat panel */}
+          {session && (
+            <div className="ct-chat-panel">
+              <button className="btn ghost" onClick={() => setChatOpen((v) => !v)}>{chatOpen ? "Close Chat" : "Open Chat"}{wsConnected ? " • Live" : ""}</button>
+              {chatOpen && (
+                <div className="ct-chat-window">
+                  <div className="ct-chat-messages">
+                    {messages.map((m, i) => (
+                      <div key={i} className="ct-chat-item">
+                        <span className="ct-chat-tag" style={{background: m.user?.color || '#334155'}}>{m.user?.initial || '👤'}</span>
+                        <span className="ct-chat-text">{m.text}</span>
+                      </div>
+                    ))}
+                    {messages.length === 0 && <div className="ct-chat-empty">No messages yet</div>}
+                  </div>
+                  <div className="ct-chat-input">
+                    <input value={chatText} onChange={(e) => setChatText(e.target.value)} placeholder="Type a message" onKeyDown={(e) => { if (e.key === 'Enter') { sendChat(chatText); setChatText(''); } }} />
+                    <button className="btn primary" onClick={() => { sendChat(chatText); setChatText(''); }}>Send</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </section>
       </main>
 
