@@ -204,7 +204,7 @@
     implemented: true
     working: false
     file: "/app/backend/server.py, /app/frontend/src/App.js"
-    stuck_count: 0
+    stuck_count: 1
     priority: "high"
     needs_retesting: false
     status_history:
@@ -214,6 +214,9 @@
       -working: false
       -agent: "testing"
       -comment: "COMPREHENSIVE REALTIME TESTING COMPLETED: Mock Mode sessions work properly (✅ Context A creates session with share code, ✅ Context B joins same session successfully, ✅ Chat windows open on both contexts, ✅ Audio elements configured correctly), but WebSocket realtime functionality is NOT working: ❌ Chat messages not transmitted between contexts (A->B and B->A both fail), ❌ Presence broadcasting not working (chat head movements not synchronized), ❌ No 'Live' WebSocket indicators showing. Root cause: WebSocket connections not establishing properly in Mock Mode - both contexts show 'Live: false' status. The WebSocket endpoint /api/hb/ws/room/{code} may not be handling Mock Mode sessions correctly since they exist only in localStorage, not in backend database."
+      -working: false
+      -agent: "testing"
+      -comment: "REAL MODE WEBSOCKET TESTING: WebSocket connections consistently fail with 404 errors to 'wss://shared-browser.preview.emergentagent.com/api/hb/ws/room/{code}'. Console shows 'WebSocket connection failed: Error during WebSocket handshake: Unexpected response code: 404'. This indicates the WebSocket endpoint /api/hb/ws/room/{code} is not properly implemented or accessible in the backend. The WebSocket server route may be missing or incorrectly configured in the FastAPI backend."
   - task: "Styling"
     implemented: true
     working: true
