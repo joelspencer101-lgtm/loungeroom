@@ -148,11 +148,11 @@
 ## frontend:
   - task: "MVP UI: API key, create/terminate, embed iframe, customization"
     implemented: true
-    working: "NA"
+    working: false
     file: "/app/frontend/src/App.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       -working: true
       -agent: "main"
@@ -169,6 +169,9 @@
       -working: "NA"
       -agent: "main"
       -comment: "Added Mock Mode that simulates sessions/rooms locally. Ready to re-test end-to-end UI flows without Hyperbeam."
+      -working: false
+      -agent: "testing"
+      -comment: "REAL MODE TESTING COMPLETED: ✅ App loads correctly with 'Coffee Table' header ✅ Mock Mode OFF confirmed ✅ API key entry works ✅ SDK Fallback mode detected with proper 'SDK Fallback' label and disabled volume slider ✅ Share code creation and capture successful (e.g., Y1Q21O) ✅ Second context can join by code successfully ✅ Session termination and cleanup works properly ❌ CRITICAL BLOCKER: Hyperbeam API returns 'err_exceeded_vm_limit' preventing session creation in Real Mode ❌ WebSocket connections fail with 404 errors to /api/hb/ws/room/{code} ❌ Chat messages cannot be transmitted between contexts ❌ Presence/chat head synchronization not working due to WebSocket failures. Real Mode testing blocked by Hyperbeam plan limitations."
   - task: "Mock Mode flows (create/share/join/terminate)"
     implemented: true
     working: true
