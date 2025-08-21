@@ -185,15 +185,18 @@
       -comment: "COMPREHENSIVE TESTING COMPLETED: All Mock Mode flows work perfectly. ✅ Mock Mode toggle and banner ✅ Session creation with iframe and MOCK label ✅ Share code creation and capture (e.g., ZCSOF9) ✅ Session termination and rejoin flows ✅ Chat head positioning and draggable setup ✅ API key input disabled/enabled correctly ✅ All UI interactions function as expected. Mock Mode provides excellent fallback for testing without Hyperbeam API limits."
   - task: "Hyperbeam SDK + Browser Volume (fallback-safe)"
     implemented: true
-    working: "NA"
+    working: true
     file: "/app/frontend/src/App.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       -working: true
       -agent: "main"
       -comment: "Integrated @hyperbeam/web; live browser volume; auto fallback to iframe with badge; proper cleanup on terminate/switch."
+      -working: true
+      -agent: "testing"
+      -comment: "SDK FALLBACK BEHAVIOR VERIFIED: ✅ Browser Volume slider properly disabled in iframe fallback mode ✅ Volume label shows '80% (iframe fallback)' when SDK cannot mount ✅ Invalid API key shows proper error: 'Hyperbeam error: err_unauthenticated, Invalid API key' ✅ Fallback system works seamlessly - when SDK fails, iframe takes over ✅ Volume controls are appropriately disabled when in fallback state. Excellent error handling and user feedback."
   - task: "Styling"
     implemented: true
     working: true
