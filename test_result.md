@@ -237,9 +237,10 @@
 
 ## test_plan:
   current_focus:
-    - "Automated Frontend Testing in Real Mode using provided Hyperbeam key"
-    - "Scenarios: create session, SDK mount/fallback, share room, join by code (second context), chat messages, presence drag, terminate & cleanup"
-  stuck_tasks: []
+    - "WebSocket endpoint implementation and debugging"
+    - "Hyperbeam API plan upgrade or alternative testing approach"
+  stuck_tasks:
+    - "Realtime presence + chat over WebSocket"
   test_all: false
   test_priority: "high_first"
 
