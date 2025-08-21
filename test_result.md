@@ -180,6 +180,17 @@
       -working: true
       -agent: "main"
       -comment: "Implemented Mock Mode with data URL browser, local room codes in localStorage, banner/labels, and disabled key input while mock is enabled."
+  - task: "Hyperbeam SDK + Browser Volume (fallback-safe)"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/App.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      -working: true
+      -agent: "main"
+      -comment: "Integrated @hyperbeam/web; live browser volume; auto fallback to iframe with badge; proper cleanup on terminate/switch."
   - task: "Styling"
     implemented: true
     working: true
