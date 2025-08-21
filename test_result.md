@@ -197,6 +197,17 @@
       -working: true
       -agent: "testing"
       -comment: "SDK FALLBACK BEHAVIOR VERIFIED: ✅ Browser Volume slider properly disabled in iframe fallback mode ✅ Volume label shows '80% (iframe fallback)' when SDK cannot mount ✅ Invalid API key shows proper error: 'Hyperbeam error: err_unauthenticated, Invalid API key' ✅ Fallback system works seamlessly - when SDK fails, iframe takes over ✅ Volume controls are appropriately disabled when in fallback state. Excellent error handling and user feedback."
+  - task: "Realtime presence + chat over WebSocket"
+    implemented: true
+    working: "NA"
+    file: "/app/backend/server.py, /app/frontend/src/App.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      -working: true
+      -agent: "main"
+      -comment: "Added /api/hb/ws/room/{code} backend; frontend connects when session+code exist; sends chat and presence; others' heads update live; chat ping uses chat volume."
   - task: "Styling"
     implemented: true
     working: true
