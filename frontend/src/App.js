@@ -101,6 +101,14 @@ function App() {
   const [frameStyle, setFrameStyle] = useLocalStorage("ct_frame_style", "glass");
   const [loopVideo, setLoopVideo] = useLocalStorage("ct_loop_video", "");
   const [mockMode, setMockMode] = useLocalStorage("ct_mock_mode", false);
+
+  // Hyperbeam SDK state (real mode only)
+  const hbMountRef = useRef(null);
+  const hbClientRef = useRef(null);
+  const [hbReady, setHbReady] = useState(false);
+  const [browserVolume, setBrowserVolume] = useLocalStorage("ct_browser_volume", 0.8);
+  const [hbFallbackIframe, setHbFallbackIframe] = useState(false);
+
   const containerRef = useRef(null);
 
   // share room code
@@ -122,6 +130,66 @@ function App() {
   const headers = useMemo(() => ({
     Authorization: `Bearer ${apiKey}`,
   }), [apiKey]);
+
+  // Initialize Hyperbeam SDK when session active in real mode
+  useEffect(() => {
+    let destroyed = false;
+
+    async function initHB() {
+      if (!session || mockMode) {
+        cleanupHB();
+        return;
+      }
+      setHbReady(false);
+      setHbFallbackIframe(false);
+      try {
+        const mod = await import("@hyperbeam/web");
+        const Hyperbeam = mod.default || mod;
+        if (!hbMountRef.current) return;
+        // Destroy existing
+        if (hbClientRef.current) {
+          try { hbClientRef.current.destroy(); } catch {}
+          hbClientRef.current = null;
+        }
+        const client = await Hyperbeam(hbMountRef.current, session.embed_url, {
+          volume: browserVolume,
+          timeout: 15000,
+          delegateKeyboard: true,
+        });
+        if (destroyed) {
+          try { client.destroy(); } catch {}
+          return;
+        }
+        hbClientRef.current = client;
+        setHbReady(true);
+      } catch (e) {
+        console.error("Hyperbeam SDK failed, falling back to iframe", e);
+        setHbFallbackIframe(true);
+      }
+    }
+
+    initHB();
+    return () => {
+      destroyed = true;
+      cleanupHB();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.embed_url, mockMode]);
+
+  // Keep browser volume in sync
+  useEffect(() => {
+    if (hbClientRef.current) {
+      try { hbClientRef.current.volume = browserVolume; } catch {}
+    }
+  }, [browserVolume]);
+
+  function cleanupHB() {
+    if (hbClientRef.current) {
+      try { hbClientRef.current.destroy(); } catch {}
+      hbClientRef.current = null;
+    }
+    setHbReady(false);
+  }
 
   const createSession = async (e) => {
     e && e.preventDefault();
@@ -169,7 +237,6 @@ function App() {
     setError("");
     try {
       if (mockMode) {
-        // remove any local room mapping tied to shareCode
         if (shareCode) {
           const rooms = getMockRooms();
           delete rooms[shareCode];
@@ -182,6 +249,7 @@ function App() {
       console.error(err);
       setError(err?.response?.data?.detail || err.message || "Remote terminate error; marked inactive locally");
     } finally {
+      cleanupHB();
       setSession(null);
       setShareCode("");
       setLoading(false);
@@ -382,21 +450,16 @@ function App() {
                 </select>
               </div>
               <div className="ct-field grow">
-                <label>Looping Video (shown when inactive)</label>
-                <input value={loopVideo} onChange={(e) => setLoopVideo(e.target.value)} placeholder="https://...mp4" />
+                <label>Browser Volume</label>
+                <input type="range" min="0" max="1" step="0.01" value={browserVolume} onChange={(e) => setBrowserVolume(parseFloat(e.target.value))} disabled={mockMode || hbFallbackIframe} />
+                <div className="ct-tiny">{Math.round(browserVolume * 100)}% {mockMode ? "(mock)" : hbFallbackIframe ? "(iframe fallback)" : ""}</div>
               </div>
             </div>
-
             <div className="ct-row">
               <div className="ct-field grow">
                 <label>Chat Volume</label>
                 <input type="range" min="0" max="1" step="0.01" value={chatVolume} onChange={(e) => setChatVolume(parseFloat(e.target.value))} />
                 <div className="ct-tiny">{Math.round(chatVolume * 100)}% <button className="btn ghost" style={{height:30}} onClick={() => { chatAudioRef.current?.play(); }}>Test</button></div>
-              </div>
-              <div className="ct-field grow">
-                <label>Browser Volume</label>
-                <input type="range" min="0" max="1" step="0.01" value={1} onChange={() => {}} disabled />
-                <div className="ct-tiny">Coming soon (requires Hyperbeam SDK)</div>
               </div>
             </div>
           </div>
@@ -410,8 +473,13 @@ function App() {
               </div>
             ) : (
               <div className="ct-browser">
-                {/* In Mock Mode we use a data URL; in real mode, Hyperbeam embed_url */}
-                <iframe title="Coffee Table" src={session.embed_url} allow="clipboard-read; clipboard-write; autoplay; microphone; camera;" allowFullScreen />
+                {mockMode ? (
+                  <iframe title="Coffee Table" src={session.embed_url} allow="clipboard-read; clipboard-write; autoplay; microphone; camera;" allowFullScreen />
+                ) : hbFallbackIframe ? (
+                  <iframe title="Coffee Table" src={session.embed_url} allow="clipboard-read; clipboard-write; autoplay; microphone; camera;" allowFullScreen />
+                ) : (
+                  <div ref={hbMountRef} style={{ width: "100%", height: "min(70vh, 760px)", borderRadius: 16, overflow: "hidden", background: "#0b1020" }} />
+                )}
 
                 <div className="ct-overlay">
                   <button className="btn ghost" onClick={enterFullscreen}>Fullscreen</button>
@@ -419,6 +487,7 @@ function App() {
                 </div>
 
                 {mockMode && <div className="ct-mock-label">MOCK</div>}
+                {(!mockMode && hbFallbackIframe) && <div className="ct-mock-label" style={{background:"rgba(239,68,68,0.2)",borderColor:"rgba(239,68,68,0.5)",color:"#fecaca"}}>SDK Fallback</div>}
               </div>
             )}
           </div>
