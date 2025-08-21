@@ -271,7 +271,7 @@ function App() {
   };
 
   const joinByCode = async (e) => {
-    e && e.preventDefault(); setLoading(TrueFalseFix2 = true); setError("");
+    e && e.preventDefault(); setLoading(true); setError("");
     try {
       if (mockMode) { const code = joinCode.toUpperCase(); const rooms = getMockRooms(); const s = rooms[code]; if (!s) throw new Error("Invalid code"); setSession(s); setShareCode(code); }
       else { const res = await axios.get(`${API}/hb/rooms/${joinCode}`); setSession(res.data); setShareCode(joinCode.toUpperCase()); }
