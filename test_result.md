@@ -237,10 +237,9 @@
 
 ## test_plan:
   current_focus:
-    - "WebSocket endpoint implementation and debugging"
-    - "Hyperbeam API plan upgrade or alternative testing approach"
-  stuck_tasks:
-    - "Realtime presence + chat over WebSocket"
+    - "Automated Frontend Testing: realtime via HTTP polling fallback (two contexts)"
+    - "Scenarios: Mock Mode create/share/join; chat A↔B; presence drag A↔B; live mode shows 'Live Poll'; terminate cleanup"
+  stuck_tasks: []
   test_all: false
   test_priority: "high_first"
 
