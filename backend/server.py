@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Header, Depends, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, APIRouter, HTTPException, Header, Depends, WebSocket, WebSocketDisconnect, Query
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -348,6 +348,55 @@ async def ws_room(websocket: WebSocket, code: str):
                 await manager.broadcast(code, {"type": "presence", "event": "leave", "user": user, "ts": now_iso()})
             except Exception:
                 pass
+
+# -------------------------------------------------------------------------------------
+# HTTP Polling fallback for realtime events (chat + presence)
+# -------------------------------------------------------------------------------------
+# In-memory event storage per room (MVP). Note: not multi-pod persistent.
+ROOM_EVENTS: Dict[str, List[Dict[str, Any]]] = {}
+ROOM_SEQ: Dict[str, int] = {}
+MAX_EVENTS = 200
+
+class EventIn(BaseModel):
+    type: str
+    text: Optional[str] = None
+    head: Optional[Dict[str, Any]] = None
+    user: Optional[Dict[str, Any]] = None
+
+class EventsOut(BaseModel):
+    events: List[Dict[str, Any]]
+    last_id: int
+
+@hb_router.post("/rooms/{code}/events", response_model=Dict[str, Any])
+async def post_room_event(code: str, event: EventIn):
+    seq = ROOM_SEQ.get(code, 0) + 1
+    ROOM_SEQ[code] = seq
+    payload = {
+        "id": seq,
+        "ts": now_iso(),
+        "type": event.type,
+        "text": event.text,
+        "head": event.head,
+        "user": event.user or {},
+    }
+    lst = ROOM_EVENTS.setdefault(code, [])
+    lst.append(payload)
+    if len(lst) > MAX_EVENTS:
+        del lst[: len(lst) - MAX_EVENTS]
+    return {"ok": True, "id": seq}
+
+@hb_router.get("/rooms/{code}/events", response_model=EventsOut)
+async def get_room_events(code: str, since: int = Query(0, ge=0)):
+    lst = ROOM_EVENTS.get(code, [])
+    if since <= 0:
+        # Return the tail to avoid huge payloads
+        tail = lst[-50:]
+        last_id = tail[-1]["id"] if tail else 0
+        return {"events": tail, "last_id": last_id}
+    # Return events with id > since
+    out = [e for e in lst if e["id"] > since]
+    last_id = lst[-1]["id"] if lst else since
+    return {"events": out, "last_id": last_id}
 
 # Include routers in the main app
 app.include_router(api_router)

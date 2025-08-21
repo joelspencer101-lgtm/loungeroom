@@ -14,9 +14,9 @@ function useLocalStorage(key, initialValue) {
   const [value, setValue] = useState(() => {
     try {
       const item = window.localStorage.getItem(key);
-      return item ? JSON.parse(item) : initialValue;
+      return item ? JSON.parse(item) : typeof initialValue === 'function' ? initialValue() : initialValue;
     } catch {
-      return initialValue;
+      return typeof initialValue === 'function' ? initialValue() : initialValue;
     }
   });
   useEffect(() => {
@@ -95,9 +95,7 @@ const genCode = (n = 6) => {
   const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
   return Array.from({ length: n }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join("");
 };
-const getMockRooms = () => {
-  try { return JSON.parse(localStorage.getItem("ct_mock_rooms") || "{}"); } catch { return {}; }
-};
+const getMockRooms = () => { try { return JSON.parse(localStorage.getItem("ct_mock_rooms") || "{}"); } catch { return {}; } };
 const setMockRooms = (obj) => { try { localStorage.setItem("ct_mock_rooms", JSON.stringify(obj)); } catch {} };
 const mockEmbedDataUrl = (title = "Coffee Table Mock Browser") => {
   const html = `<!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>${title}</title><style>html,body{height:100%;margin:0;background:#0b1020;color:#e5e7eb;font-family:system-ui, -apple-system, Segoe UI, Roboto} .wrap{display:grid;place-items:center;height:100%} .card{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:24px;text-align:center;box-shadow:0 10px 30px rgba(0,0,0,.5);} .pulse{width:12px;height:12px;border-radius:12px;background:#22c55e;display:inline-block;box-shadow:0 0 0 0 rgba(34,197,94,.7);animation:pulse 1.8s infinite;} @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(34,197,94,.7)}70%{box-shadow:0 0 0 18px rgba(34,197,94,0)}100%{box-shadow:0 0 0 0 rgba(34,197,94,0)}} .muted{opacity:.8} </style></head><body><div class="wrap"><div class="card"><div style="font-size:18px;font-weight:800;letter-spacing:.4px;margin-bottom:6px">${title}</div><div class="muted" id="clock"></div><div style="margin-top:10px"><span class="pulse"></span> Connected</div></div></div><script>function tick(){ document.getElementById('clock').textContent=new Date().toLocaleString(); } setInterval(tick,1000); tick();</script></body></html>`;
@@ -139,9 +137,11 @@ function App() {
   const [shareCode, setShareCode] = useState("");
   const [joinCode, setJoinCode] = useState("");
 
-  // presence & chat via WebSocket
-  const [wsConnected, setWsConnected] = useState(false);
+  // presence & chat via WebSocket or HTTP polling
+  const [liveMode, setLiveMode] = useState("none"); // none | ws | poll
   const wsRef = useRef(null);
+  const pollRef = useRef(null);
+  const lastEventIdRef = useRef(0);
   const [messages, setMessages] = useState([]);
   const [chatOpen, setChatOpen] = useState(false);
   const [others, setOthers] = useState({}); // userId -> {initial,color,pos,size}
@@ -183,54 +183,121 @@ function App() {
 
   function cleanupHB() { if (hbClientRef.current) { try { hbClientRef.current.destroy(); } catch {} hbClientRef.current = null; } setHbReady(false); }
 
-  // WebSocket connect/disconnect when shareCode available and session active
-  const connectWS = useCallback(() => {
-    if (!session || !shareCode) return;
-    if (wsRef.current) return;
-    const url = wsUrlFromHttp(BACKEND_URL, `/api/hb/ws/room/${shareCode}`);
-    const ws = new WebSocket(url);
-    wsRef.current = ws;
-    ws.onopen = () => {
-      setWsConnected(true);
-      ws.send(JSON.stringify({ type: "hello", user }));
-    };
-    ws.onmessage = (ev) => {
+  // Live connection management (WS first, then poll)
+  const stopPolling = useCallback(() => { if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; } }, []);
+  const stopWS = useCallback(() => { try { wsRef.current?.close(); } catch {} wsRef.current = null; }, []);
+
+  const startPolling = useCallback((code) => {
+    stopPolling();
+    setLiveMode("poll");
+    lastEventIdRef.current = 0; // fresh
+    const tick = async () => {
       try {
-        const data = JSON.parse(ev.data);
-        if (data.type === "chat") {
-          setMessages((m) => [...m, data]);
-          if (data.user?.id !== user.id) chatAudioRef.current?.play().catch(() => {});
+        const res = await axios.get(`${API}/hb/rooms/${code}/events`, { params: { since: lastEventIdRef.current } });
+        const { events, last_id } = res.data || {};
+        if (Array.isArray(events) && events.length) {
+          events.forEach(handleInboundEvent);
+          lastEventIdRef.current = last_id || lastEventIdRef.current;
         }
-        if (data.type === "presence") {
-          if (data.event === "leave") {
-            setOthers((o) => { const c = { ...o }; if (data.user?.id) delete c[data.user.id]; return c; });
-          } else if (data.head && data.user?.id && data.user.id !== user.id) {
-            setOthers((o) => ({ ...o, [data.user.id]: { initial: data.user.initial, color: data.user.color, pos: data.head.pos, size: data.head.size } }));
-          } else if (data.event === "join" && data.user?.id && data.user.id !== user.id) {
-            setOthers((o) => ({ ...o, [data.user.id]: { initial: data.user.initial, color: data.user.color, pos: { x: 24, y: 24 }, size: 64 } }));
-          }
-        }
-      } catch {}
+      } catch (e) {
+        // keep polling even on transient errors
+      }
     };
-    ws.onclose = () => { setWsConnected(false); wsRef.current = null; setOthers({}); };
-    ws.onerror = () => { setWsConnected(false); };
-  }, [session, shareCode, user]);
+    tick();
+    pollRef.current = setInterval(tick, 1200);
+  }, [stopPolling]);
 
-  const disconnectWS = useCallback(() => { try { wsRef.current?.close(); } catch {} wsRef.current = null; setWsConnected(false); setOthers({}); }, []);
+  const startWS = useCallback((code) => {
+    stopWS();
+    try {
+      const url = wsUrlFromHttp(BACKEND_URL, `/api/hb/ws/room/${code}`);
+      const ws = new WebSocket(url);
+      wsRef.current = ws;
+      ws.onopen = () => {
+        setLiveMode("ws");
+        ws.send(JSON.stringify({ type: "hello", user }));
+      };
+      ws.onmessage = (ev) => {
+        try { const data = JSON.parse(ev.data); handleInboundEvent(data); } catch {}
+      };
+      ws.onclose = () => {
+        wsRef.current = null;
+        // fallback to polling
+        startPolling(code);
+      };
+      ws.onerror = () => {
+        // fallback to polling
+        try { ws.close(); } catch {}
+        wsRef.current = null;
+        startPolling(code);
+      };
+    } catch (e) {
+      startPolling(code);
+    }
+  }, [startPolling, stopWS, user]);
 
-  // Auto-connect when we have session + shareCode
-  useEffect(() => { if (session && shareCode) connectWS(); else disconnectWS(); }, [session, shareCode, connectWS, disconnectWS]);
+  const handleInboundEvent = useCallback((data) => {
+    if (data.type === "chat") {
+      setMessages((m) => [...m, data]);
+      if (data.user?.id !== user.id) chatAudioRef.current?.play().catch(() => {});
+    }
+    if (data.type === "presence") {
+      if (data.event === "leave") {
+        setOthers((o) => { const c = { ...o }; if (data.user?.id) delete c[data.user.id]; return c; });
+      } else if (data.head && data.user?.id && data.user.id !== user.id) {
+        setOthers((o) => ({ ...o, [data.user.id]: { initial: data.user.initial, color: data.user.color, pos: data.head.pos, size: data.head.size } }));
+      } else if (data.event === "join" && data.user?.id && data.user.id !== user.id) {
+        setOthers((o) => ({ ...o, [data.user.id]: { initial: data.user.initial, color: data.user.color, pos: { x: 24, y: 24 }, size: 64 } }));
+      }
+    }
+  }, [user.id]);
+
+  // Connect live when we have shareCode and session
+  useEffect(() => {
+    stopPolling();
+    stopWS();
+    setLiveMode("none");
+    setOthers({});
+    setMessages([]);
+    lastEventIdRef.current = 0;
+    if (session && shareCode) {
+      startWS(shareCode);
+    }
+    return () => { stopPolling(); stopWS(); };
+  }, [session, shareCode, startWS, stopPolling, stopWS]);
+
+  // Outbound helpers (WS preferred, then POST)
+  const postEvent = useCallback(async (code, payload) => {
+    try {
+      await axios.post(`${API}/hb/rooms/${code}/events`, payload);
+    } catch (e) {}
+  }, []);
 
   const sendPresence = useCallback((head) => {
-    if (!wsRef.current) return;
-    const payload = { type: "presence", head };
-    try { wsRef.current.send(JSON.stringify(payload)); } catch {}
-  }, []);
+    if (!shareCode) return;
+    const payload = { type: "presence", head, user };
+    if (wsRef.current && liveMode === "ws") {
+      try { wsRef.current.send(JSON.stringify(payload)); } catch {}
+    } else {
+      // throttle presence posts
+      if (!sendPresence._t || Date.now() - sendPresence._t > 300) {
+        sendPresence._t = Date.now();
+        postEvent(shareCode, payload);
+      }
+    }
+  }, [liveMode, postEvent, shareCode, user]);
 
   const sendChat = useCallback((text) => {
-    if (!wsRef.current || !text?.trim()) return;
-    try { wsRef.current.send(JSON.stringify({ type: "chat", text: text.trim() })); } catch {}
-  }, []);
+    if (!shareCode || !text?.trim()) return;
+    const payload = { type: "chat", text: text.trim(), user };
+    if (wsRef.current && liveMode === "ws") {
+      try { wsRef.current.send(JSON.stringify(payload)); } catch {}
+    } else {
+      postEvent(shareCode, payload);
+      // optimistic render
+      handleInboundEvent(payload);
+    }
+  }, [handleInboundEvent, liveMode, postEvent, shareCode, user]);
 
   const [chatText, setChatText] = useState("");
 
@@ -259,7 +326,7 @@ function App() {
       if (mockMode) { if (shareCode) { const rooms = getMockRooms(); delete rooms[shareCode]; setMockRooms(rooms); } }
       else { await axios.delete(`${API}/hb/sessions/${session.session_uuid}`, { headers }); }
     } catch (err) { console.error(err); setError(err?.response?.data?.detail || err.message || "Remote terminate error; marked inactive locally"); }
-    finally { cleanupHB(); setSession(null); setShareCode(""); disconnectWS(); setLoading(false); }
+    finally { cleanupHB(); setSession(null); setShareCode(""); stopPolling(); stopWS(); setLiveMode("none"); setOthers({}); setMessages([]); setLoading(false); }
   };
 
   const createShareCode = async () => {
@@ -358,7 +425,7 @@ function App() {
 
             {error ? <div className="ct-alert error">{String(error)}</div> : null}
             {session ? (
-              <div className="ct-alert success">Session Active • {session.session_uuid} {shareCode ? `• Code ${shareCode}` : ""} {wsConnected ? "• Live" : ""}</div>
+              <div className="ct-alert success">Session Active • {session.session_uuid} {shareCode ? `• Code ${shareCode}` : ""} {liveMode === 'ws' ? '• Live WS' : liveMode === 'poll' ? '• Live Poll' : ''}</div>
             ) : null}
           </form>
 
@@ -440,7 +507,7 @@ function App() {
           {/* Chat panel */}
           {session && (
             <div className="ct-chat-panel">
-              <button className="btn ghost" onClick={() => setChatOpen((v) => !v)}>{chatOpen ? "Close Chat" : "Open Chat"}{wsConnected ? " • Live" : ""}</button>
+              <button className="btn ghost" onClick={() => setChatOpen((v) => !v)}>{chatOpen ? "Close Chat" : "Open Chat"}{liveMode !== 'none' ? (liveMode === 'ws' ? ' • Live WS' : ' • Live Poll') : ''}</button>
               {chatOpen && (
                 <div className="ct-chat-window">
                   <div className="ct-chat-messages">
