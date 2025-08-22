@@ -20,6 +20,8 @@ body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI
 .ct-bg-video { position: fixed; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0.15; pointer-events: none; z-index: 0; }
 
 .ct-header { text-align: center; padding: 28px 16px 8px; position: relative; z-index: 1; }
+.ct-header-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.ct-header-actions { display: flex; align-items: center; gap: 10px; }
 .ct-title { font-size: 28px; font-weight: 800; letter-spacing: 0.2px; }
 .ct-sub { font-size: 14px; color: var(--muted); margin-top: 6px; }
 
@@ -60,6 +62,7 @@ body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI
 
 .ct-customize { margin-top: 16px; border-top: 1px dashed rgba(148,163,184,0.18); padding-top: 12px; }
 .ct-custom-title { font-size: 12px; color: var(--muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; }
+.ct-divider { height: 1px; background: rgba(148,163,184,0.18); margin: 12px 0; }
 
 .ct-stage { position: relative; }
 .ct-frame { position: relative; border-radius: 16px; min-height: 320px; }
@@ -93,5 +96,15 @@ body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI
 .ct-tiny { font-size: 12px; opacity: 0.8; display: flex; align-items: center; gap: 6px; }
 
 .ct-mock-label { position: absolute; top: 10px; left: 10px; background: rgba(245, 158, 11, 0.18); border: 1px solid rgba(245,158,11,0.45); color: #fde68a; font-weight: 700; padding: 4px 8px; border-radius: 8px; letter-spacing: .6px; }
+
+/* Launch icon */
+.ct-launch { width: 56px; height: 56px; border-radius: 18px; border: 1px solid rgba(255,255,255,0.22); display: grid; place-items: center; box-shadow: 0 10px 30px rgba(0,0,0,0.35); cursor: pointer; transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease; }
+.ct-launch:hover { transform: translateY(-1px) scale(1.02); box-shadow: 0 14px 36px rgba(0,0,0,0.45); border-color: rgba(255,255,255,0.35); }
+.ct-launch:active { transform: scale(0.98); }
+.ct-launch-emoji { font-size: 26px; filter: drop-shadow(0 2px 6px rgba(0,0,0,0.4)); }
+
+/* Icon builder */
+.ct-icon-builder { background: rgba(2,6,23,0.6); border: 1px solid rgba(148,163,184,0.12); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 12px; }
+.ct-launch-preview { display: flex; align-items: center; gap: 10px; }
 
 .ct-footer { text-align: center; color: var(--muted); margin-top: 16px; font-size: 12px; }

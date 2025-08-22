@@ -102,6 +102,14 @@ const mockEmbedDataUrl = (title = "Coffee Table Mock Browser") => {
   return "data:text/html;base64," + btoa(unescape(encodeURIComponent(html)));
 };
 
+function LaunchIcon({ icon, onClick }) {
+  return (
+    <button className="ct-launch" style={{ background: icon.bg, color: icon.color }} onClick={onClick} title="Launch session">
+      <span className="ct-launch-emoji">{icon.emoji || "☕️"}</span>
+    </button>
+  );
+}
+
 function App() {
   // user profile
   const [user] = useLocalStorage("ct_user", () => {
@@ -123,6 +131,13 @@ function App() {
   const [frameStyle, setFrameStyle] = useLocalStorage("ct_frame_style", "glass");
   const [loopVideo, setLoopVideo] = useLocalStorage("ct_loop_video", "");
   const [mockMode, setMockMode] = useLocalStorage("ct_mock_mode", false);
+
+  // Launch icon customization
+  const [launchIcon, setLaunchIcon] = useLocalStorage("ct_launch_icon", {
+    emoji: "☕️",
+    color: "#ffffff",
+    bg: "linear-gradient(135deg, #7c3aed, #06b6d4)",
+  });
 
   // Hyperbeam SDK state (real mode only)
   const hbMountRef = useRef(null);
@@ -388,6 +403,15 @@ function App() {
 
   const bgStyle = useMemo(() => (bgType === "image" && bgImage ? { backgroundImage: `url(${bgImage})`, backgroundSize: "cover", backgroundPosition: "center" } : {}), [bgType, bgImage]);
 
+  // Launch handler: calls createSession without requiring form submit
+  const handleLaunchClick = () => {
+    if (!mockMode && !apiKey) {
+      alert("Enter your Hyperbeam API key or enable Mock Mode to launch");
+      return;
+    }
+    createSession(null);
+  };
+
   return (
     <div className="ct-root" style={bgStyle}>
       {mockMode && (<div className="ct-banner">Mock Mode is ON — no calls to Hyperbeam; sessions and rooms are simulated.</div>)}
@@ -396,8 +420,15 @@ function App() {
       {!session && loopVideo ? (<video className="ct-bg-video" src={loopVideo} autoPlay muted loop playsInline />) : null}
 
       <header className="ct-header">
-        <div className="ct-title">Coffee Table</div>
-        <div className="ct-sub">Shared virtual browser powered by Hyperbeam</div>
+        <div className="ct-header-row">
+          <div>
+            <div className="ct-title">Coffee Table</div>
+            <div className="ct-sub">Shared virtual browser powered by Hyperbeam</div>
+          </div>
+          <div className="ct-header-actions">
+            <LaunchIcon icon={launchIcon} onClick={handleLaunchClick} />
+          </div>
+        </div>
       </header>
 
       <main className="ct-main">
@@ -505,6 +536,38 @@ function App() {
                 <input type="range" min="0" max="1" step="0.01" value={chatVolume} onChange={(e) => setChatVolume(parseFloat(e.target.value))} />
                 <div className="ct-tiny">{Math.round(chatVolume * 100)}% <button className="btn ghost" style={{height:30}} onClick={() => { chatAudioRef.current?.play(); }}>Test</button></div>
               </div>
+            </div>
+
+            <div className="ct-divider" />
+            <div className="ct-custom-title">Launch Icon</div>
+            <div className="ct-icon-builder">
+              <div className="ct-launch-preview">
+                <LaunchIcon icon={launchIcon} onClick={handleLaunchClick} />
+              </div>
+              <div className="ct-row">
+                <div className="ct-field">
+                  <label>Emoji</label>
+                  <input value={launchIcon.emoji} onChange={(e) => setLaunchIcon({ ...launchIcon, emoji: e.target.value.slice(0, 3) })} placeholder="☕️" />
+                </div>
+                <div className="ct-field">
+                  <label>Text Color</label>
+                  <input type="color" value={launchIcon.color} onChange={(e) => setLaunchIcon({ ...launchIcon, color: e.target.value })} />
+                </div>
+              </div>
+              <div className="ct-field">
+                <label>Background Style</label>
+                <select
+                  value={launchIcon.bg}
+                  onChange={(e) => setLaunchIcon({ ...launchIcon, bg: e.target.value })}
+                >
+                  <option value="linear-gradient(135deg, #7c3aed, #06b6d4)">Purple → Teal</option>
+                  <option value="linear-gradient(135deg, #ef4444, #f59e0b)">Red → Amber</option>
+                  <option value="linear-gradient(135deg, #22c55e, #06b6d4)">Green → Teal</option>
+                  <option value="linear-gradient(135deg, #0ea5e9, #9333ea)">Sky → Violet</option>
+                  <option value="#111827">Solid • Slate</option>
+                </select>
+              </div>
+              <div className="ct-tiny">Tip: Tap the icon to launch quickly with current settings.</div>
             </div>
           </div>
         </section>
