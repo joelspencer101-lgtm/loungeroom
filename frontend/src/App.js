@@ -240,15 +240,29 @@ function App() {
     if (data.type === "chat") {
       setMessages((m) => [...m, data]);
       if (data.user?.id !== user.id) chatAudioRef.current?.play().catch(() => {});
+      return;
     }
     if (data.type === "presence") {
       if (data.event === "leave") {
         setOthers((o) => { const c = { ...o }; if (data.user?.id) delete c[data.user.id]; return c; });
-      } else if (data.head && data.user?.id && data.user.id !== user.id) {
-        setOthers((o) => ({ ...o, [data.user.id]: { initial: data.user.initial, color: data.user.color, pos: data.head.pos, size: data.head.size } }));
       } else if (data.event === "join" && data.user?.id && data.user.id !== user.id) {
         setOthers((o) => ({ ...o, [data.user.id]: { initial: data.user.initial, color: data.user.color, pos: { x: 24, y: 24 }, size: 64 } }));
+      } else if (data.head && data.user?.id && data.user.id !== user.id) {
+        setOthers((o) => ({ ...o, [data.user.id]: { initial: data.user.initial, color: data.user.color, pos: data.head.pos, size: data.head.size } }));
       }
+      return;
+    }
+    if (data.type === "session_end") {
+      // Remote owner ended the session: reset local state
+      cleanupHB();
+      setSession(null);
+      setShareCode("");
+      stopPolling();
+      stopWS();
+      setLiveMode("none");
+      setOthers({});
+      setMessages([]);
+      return;
     }
   }, [user.id]);
 
