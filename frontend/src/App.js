@@ -294,7 +294,7 @@ function App() {
       try { wsRef.current.send(JSON.stringify(payload)); } catch {}
     } else {
       // throttle presence posts
-      if (!sendPresence._t || Date.now() - sendPresence._t > 300) {
+      if (!sendPresence._t || Date.now() - sendPresence._t > 240) {
         sendPresence._t = Date.now();
         postEvent(shareCode, payload);
       }
