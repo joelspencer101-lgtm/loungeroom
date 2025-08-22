@@ -39,7 +39,7 @@ function DraggableChatHead({ id = "me", initial = "😀", color = "#8b5cf6", sto
     if (value?.pos) setPos(value.pos);
     if (value?.size) setSize(value.size);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value?.pos?.x, value?.pos?.y, value?.size]);
+    }, [value?.pos?.x, value?.pos?.y, value?.size]);
 
   useEffect(() => {
     const el = rootRef.current;
@@ -102,13 +102,22 @@ const mockEmbedDataUrl = (title = "Coffee Table Mock Browser") => {
   return "data:text/html;base64," + btoa(unescape(encodeURIComponent(html)));
 };
 
-function LaunchIcon({ icon, onClick }) {
+function LaunchIcon({ icon, onClick, className = "" }) {
   return (
-    <button className="ct-launch" style={{ background: icon.bg, color: icon.color }} onClick={onClick} title="Launch session">
+    <button className={`ct-launch ${className}`} style={{ background: icon.bg, color: icon.color }} onClick={onClick} title="Launch session" aria-label="Launch session">
       <span className="ct-launch-emoji">{icon.emoji || "☕️"}</span>
     </button>
   );
 }
+
+const PRESETS = [
+  { label: "None (use Start URL)", url: "" },
+  { label: "YouTube", url: "https://www.youtube.com" },
+  { label: "Netflix", url: "https://www.netflix.com" },
+  { label: "Twitch", url: "https://www.twitch.tv" },
+  { label: "Spotify", url: "https://open.spotify.com" },
+  { label: "Disney+", url: "https://www.disneyplus.com" },
+];
 
 function App() {
   // user profile
@@ -137,6 +146,8 @@ function App() {
     emoji: "☕️",
     color: "#ffffff",
     bg: "linear-gradient(135deg, #7c3aed, #06b6d4)",
+    preset: PRESETS[0],
+    floatMobile: true,
   });
 
   // Hyperbeam SDK state (real mode only)
@@ -330,22 +341,27 @@ function App() {
 
   const [chatText, setChatText] = useState("");
 
-  const createSession = async (e) => {
-    e && e.preventDefault();
+  // New: base creator that accepts a URL override
+  const createSessionWithUrl = async (url) => {
     setLoading(true);
     setError("");
     try {
       if (mockMode) {
-        const fake = { session_uuid: uuid(), embed_url: mockEmbedDataUrl(), created_at: new Date().toISOString(), metadata: { width: Number(size.width) || 1280, height: Number(size.height) || 720, start_url: startUrl } };
+        const fake = { session_uuid: uuid(), embed_url: mockEmbedDataUrl(), created_at: new Date().toISOString(), metadata: { width: Number(size.width) || 1280, height: Number(size.height) || 720, start_url: url } };
         setSession(fake); setShareCode("");
       } else {
         if (!apiKey) { alert("Please paste your Hyperbeam API key"); return; }
-        const payload = { start_url: startUrl, width: Number(size.width) || 1280, height: Number(size.height) || 720, kiosk: true, timeout_absolute: 3600, timeout_inactive: 1800 };
+        const payload = { start_url: url, width: Number(size.width) || 1280, height: Number(size.height) || 720, kiosk: true, timeout_absolute: 3600, timeout_inactive: 1800 };
         const res = await axios.post(`${API}/hb/sessions`, payload, { headers });
         setSession(res.data); setShareCode("");
       }
     } catch (err) { console.error(err); setError(err?.response?.data?.detail || err.message || "Failed to create session"); }
     finally { setLoading(false); }
+  };
+
+  const createSession = async (e) => {
+    e && e.preventDefault();
+    return createSessionWithUrl(startUrl);
   };
 
   const terminateSession = async () => {
@@ -357,7 +373,6 @@ function App() {
           const rooms = getMockRooms();
           delete rooms[shareCode];
           setMockRooms(rooms);
-          // broadcast termination via events so others cleanup
           await axios.post(`${API}/hb/rooms/${shareCode}/events`, { type: "session_end", user });
         }
       } else {
@@ -366,20 +381,8 @@ function App() {
           await axios.post(`${API}/hb/rooms/${shareCode}/events`, { type: "session_end", user });
         }
       }
-    } catch (err) {
-      console.error(err);
-      setError(err?.response?.data?.detail || err.message || "Remote terminate error; marked inactive locally");
-    } finally {
-      cleanupHB();
-      setSession(null);
-      setShareCode("");
-      stopPolling();
-      stopWS();
-      setLiveMode("none");
-      setOthers({});
-      setMessages([]);
-      setLoading(false);
-    }
+    } catch (err) { console.error(err); setError(err?.response?.data?.detail || err.message || "Remote terminate error; marked inactive locally"); }
+    finally { cleanupHB(); setSession(null); setShareCode(""); stopPolling(); stopWS(); setLiveMode("none"); setOthers({}); setMessages([]); setLoading(false); }
   };
 
   const createShareCode = async () => {
@@ -403,13 +406,14 @@ function App() {
 
   const bgStyle = useMemo(() => (bgType === "image" && bgImage ? { backgroundImage: `url(${bgImage})`, backgroundSize: "cover", backgroundPosition: "center" } : {}), [bgType, bgImage]);
 
-  // Launch handler: calls createSession without requiring form submit
+  // Launch handler: uses preset URL if provided
   const handleLaunchClick = () => {
+    const effectiveUrl = launchIcon?.preset?.url || startUrl;
     if (!mockMode && !apiKey) {
       alert("Enter your Hyperbeam API key or enable Mock Mode to launch");
       return;
     }
-    createSession(null);
+    createSessionWithUrl(effectiveUrl);
   };
 
   return (
@@ -430,6 +434,13 @@ function App() {
           </div>
         </div>
       </header>
+
+      {/* Floating dock button for mobile */}
+      {launchIcon.floatMobile && (
+        <div className="ct-dock">
+          <LaunchIcon icon={launchIcon} onClick={handleLaunchClick} className="ct-dock-btn" />
+        </div>
+      )}
 
       <main className="ct-main">
         <section className="ct-panel">
@@ -556,10 +567,7 @@ function App() {
               </div>
               <div className="ct-field">
                 <label>Background Style</label>
-                <select
-                  value={launchIcon.bg}
-                  onChange={(e) => setLaunchIcon({ ...launchIcon, bg: e.target.value })}
-                >
+                <select value={launchIcon.bg} onChange={(e) => setLaunchIcon({ ...launchIcon, bg: e.target.value })}>
                   <option value="linear-gradient(135deg, #7c3aed, #06b6d4)">Purple → Teal</option>
                   <option value="linear-gradient(135deg, #ef4444, #f59e0b)">Red → Amber</option>
                   <option value="linear-gradient(135deg, #22c55e, #06b6d4)">Green → Teal</option>
@@ -567,7 +575,28 @@ function App() {
                   <option value="#111827">Solid • Slate</option>
                 </select>
               </div>
-              <div className="ct-tiny">Tip: Tap the icon to launch quickly with current settings.</div>
+              <div className="ct-row">
+                <div className="ct-field grow">
+                  <label>Preset</label>
+                  <select
+                    value={launchIcon?.preset?.label || PRESETS[0].label}
+                    onChange={(e) => {
+                      const p = PRESETS.find(x => x.label === e.target.value) || PRESETS[0];
+                      setLaunchIcon({ ...launchIcon, preset: p });
+                    }}
+                  >
+                    {PRESETS.map(p => <option key={p.label} value={p.label}>{p.label}</option>)}
+                  </select>
+                </div>
+                <div className="ct-field">
+                  <label>Float on Mobile</label>
+                  <div className="ct-toggle">
+                    <input id="floatMobile" type="checkbox" checked={!!launchIcon.floatMobile} onChange={(e) => setLaunchIcon({ ...launchIcon, floatMobile: e.target.checked })} />
+                    <label htmlFor="floatMobile">Enabled</label>
+                  </div>
+                </div>
+              </div>
+              <div className="ct-tiny">Tip: The Launch icon uses your selected preset URL if set; otherwise it uses the Start URL field.</div>
             </div>
           </div>
         </section>

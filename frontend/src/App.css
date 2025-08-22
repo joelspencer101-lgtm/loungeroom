@@ -107,4 +107,9 @@ body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI
 .ct-icon-builder { background: rgba(2,6,23,0.6); border: 1px solid rgba(148,163,184,0.12); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 12px; }
 .ct-launch-preview { display: flex; align-items: center; gap: 10px; }
 
+/* Floating dock (mobile) */
+.ct-dock { position: fixed; right: 16px; bottom: max(16px, env(safe-area-inset-bottom)); z-index: 45; display: none; }
+.ct-dock .ct-dock-btn { width: 64px; height: 64px; border-radius: 20px; }
+@media (max-width: 780px) { .ct-dock { display: block; } }
+
 .ct-footer { text-align: center; color: var(--muted); margin-top: 16px; font-size: 12px; }
