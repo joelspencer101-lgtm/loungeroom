@@ -243,8 +243,8 @@
 
 ## test_plan:
   current_focus:
-    - "Automated Frontend Testing: presence sync + terminate cleanup over HTTP polling (two contexts, Mock Mode)"
-    - "Verify: A↔B presence drag sync, A↔B chat, Live Poll indicators, session_end event cleanup"
+    - "Automated Frontend Testing: presence sync + terminate cleanup over HTTP polling (two contexts, Mock Mode) - COMPLETED"
+    - "Verify: A↔B presence drag sync, A↔B chat, Live Poll indicators, session_end event cleanup - COMPLETED"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
