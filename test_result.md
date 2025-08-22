@@ -240,8 +240,8 @@
 
 ## test_plan:
   current_focus:
-    - "Automated Frontend Testing: realtime via HTTP polling fallback (two contexts)"
-    - "Scenarios: Mock Mode create/share/join; chat A↔B; presence drag A↔B; live mode shows 'Live Poll'; terminate cleanup"
+    - "Automated Frontend Testing: presence sync + terminate cleanup over HTTP polling (two contexts, Mock Mode)"
+    - "Verify: A↔B presence drag sync, A↔B chat, Live Poll indicators, session_end event cleanup"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
