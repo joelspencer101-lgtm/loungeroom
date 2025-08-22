@@ -337,10 +337,34 @@ function App() {
     if (!session) return; if (!window.confirm("Terminate this session?")) return;
     setLoading(true); setError("");
     try {
-      if (mockMode) { if (shareCode) { const rooms = getMockRooms(); delete rooms[shareCode]; setMockRooms(rooms); } }
-      else { await axios.delete(`${API}/hb/sessions/${session.session_uuid}`, { headers }); }
-    } catch (err) { console.error(err); setError(err?.response?.data?.detail || err.message || "Remote terminate error; marked inactive locally"); }
-    finally { cleanupHB(); setSession(null); setShareCode(""); stopPolling(); stopWS(); setLiveMode("none"); setOthers({}); setMessages([]); setLoading(false); }
+      if (mockMode) {
+        if (shareCode) {
+          const rooms = getMockRooms();
+          delete rooms[shareCode];
+          setMockRooms(rooms);
+          // broadcast termination via events so others cleanup
+          await axios.post(`${API}/hb/rooms/${shareCode}/events`, { type: "session_end", user });
+        }
+      } else {
+        await axios.delete(`${API}/hb/sessions/${session.session_uuid}`, { headers });
+        if (shareCode) {
+          await axios.post(`${API}/hb/rooms/${shareCode}/events`, { type: "session_end", user });
+        }
+      }
+    } catch (err) {
+      console.error(err);
+      setError(err?.response?.data?.detail || err.message || "Remote terminate error; marked inactive locally");
+    } finally {
+      cleanupHB();
+      setSession(null);
+      setShareCode("");
+      stopPolling();
+      stopWS();
+      setLiveMode("none");
+      setOthers({});
+      setMessages([]);
+      setLoading(false);
+    }
   };
 
   const createShareCode = async () => {
