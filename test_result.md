@@ -170,15 +170,18 @@
       -comment: "COMPREHENSIVE ADMIN ENDPOINTS TESTING COMPLETED SUCCESSFULLY: ✅ GET /api/hb/admin/active: Returns list of active sessions with age_minutes, requires X-Admin-Token header (401 without token) ✅ POST /api/hb/admin/cleanup (dry_run=true): Returns would_terminate list without actually terminating sessions ✅ POST /api/hb/admin/cleanup (dry_run=false): Successfully terminates sessions and returns terminated list with count ✅ DELETE /api/hb/admin/sessions/{uuid}: Successfully terminates specific session using X-Admin-Token header ✅ Admin authentication: All admin endpoints properly require X-Admin-Token header, return 401 without valid token ✅ Environment variables: ADMIN_TOKEN=ct_admin_yPT4V9qJb2QHn7M3sLx8A1kR5cD0eWgZ and HYPERBEAM_API_KEY=sk_test_JdZwpNJgNmT9146OlIhx8CZzerrk4PhofqwZv6Bxlkc working correctly. All admin session janitor functionality is working perfectly."
   - task: "MAX_ACTIVE enforcement for Test API plan"
     implemented: true
-    working: "NA"
+    working: true
     file: "/app/backend/server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       -working: "NA"
       -agent: "main"
       -comment: "POST /api/hb/sessions now returns 429 when active sessions >= MAX_ACTIVE_SESSIONS (env). Set to 1 in backend/.env to respect Hyperbeam test limit."
+      -working: true
+      -agent: "testing"
+      -comment: "MAX_ACTIVE_SESSIONS ENFORCEMENT TESTING COMPLETED SUCCESSFULLY: ✅ Environment variable MAX_ACTIVE_SESSIONS=1 properly configured in backend/.env ✅ First session creation: Returns 200 with valid session_uuid and embed_url ✅ Second session creation: Returns 429 with error message 'Max active sessions reached (1). Use admin cleanup to free capacity.' ✅ Admin cleanup integration: After admin cleanup (dry_run=false), new sessions can be created successfully ✅ Error handling: Proper HTTP 429 status code and descriptive error message returned when limit exceeded ✅ Session counting: Backend correctly tracks active sessions and enforces the limit. MAX_ACTIVE enforcement is working perfectly with the test API plan limit of 1 session."
   - task: "WebSocket Ingress guidance + self-verify plan"
     implemented: true
     working: "NA"
