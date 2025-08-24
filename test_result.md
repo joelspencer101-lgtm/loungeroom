@@ -260,7 +260,13 @@
   run_ui: false
 
 ## test_plan:
-  current_focus: []
+  current_focus:
+    - "Advanced Hyperbeam Persistence Feature"
+    - "Advanced Hyperbeam Multicursor Feature"
+    - "Chrome Extensions Manager"
+    - "Dynamic Resize Feature"
+    - "Smart Timeout Management"
+    - "Existing Features Regression Test"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
