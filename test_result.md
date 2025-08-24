@@ -258,13 +258,12 @@
 
 ## test_plan:
   current_focus:
-    - "Frontend testing with working API key sk_test_JdZwpNJgNmT9146OlIhx8CZzerrk4PhofqwZv6Bxlkc to identify UI flow issues"
-    - "Debug frontend session creation, embedding, and display process"
-    - "Fix identified frontend issues preventing Hyperbeam session launch"
-  stuck_tasks:
-    - "MVP UI: API key, create/terminate, embed iframe, customization - needs frontend debugging"
+    - "Test all new UI improvements: removed New Tab button, enhanced fullscreen with chat overlay, better app icons, quick background selector, Bluey games integration"
+    - "Verify Close Session functionality, custom app bookmarks, and mobile responsiveness"
+    - "Test Bluey background switching and default Lounge background"
+  stuck_tasks: []
   test_all: false
-  test_priority: "stuck_first"
+  test_priority: "high_first"
 
 ## agent_communication:
   -agent: "main"
