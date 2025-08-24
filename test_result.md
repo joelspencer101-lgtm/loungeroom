@@ -249,11 +249,14 @@
 
 ## test_plan:
   current_focus:
-    - "Automated Frontend Testing: presence sync + terminate cleanup over HTTP polling (two contexts, Mock Mode) - COMPLETED"
-    - "Verify: A↔B presence drag sync, A↔B chat, Live Poll indicators, session_end event cleanup - COMPLETED"
-  stuck_tasks: []
+    - "Test provided Hyperbeam API key sk_test_JdZwpNJgNmT9146OlIhx8CZzerrk4PhofqwZv6Bxlkc for session creation"
+    - "Investigate why Real Mode Hyperbeam integration is not functional"
+    - "Fix Hyperbeam session creation issues"
+  stuck_tasks:
+    - "HB proxy endpoints (/api/hb) - user reports non-functional integration"
+    - "MVP UI: API key, create/terminate, embed iframe, customization - blocked by Hyperbeam issues"
   test_all: false
-  test_priority: "high_first"
+  test_priority: "stuck_first"
 
 ## agent_communication:
   -agent: "main"
