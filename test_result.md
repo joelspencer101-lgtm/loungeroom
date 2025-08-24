@@ -157,11 +157,11 @@
 ## frontend:
   - task: "MVP UI: API key, create/terminate, embed iframe, customization"
     implemented: true
-    working: false
+    working: true
     file: "/app/frontend/src/App.js"
     stuck_count: 1
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       -working: true
       -agent: "main"
@@ -187,6 +187,9 @@
       -working: true
       -agent: "testing"
       -comment: "CRITICAL ISSUES IDENTIFIED AND FIXED: 1) ❌ FRONTEND COMPILATION ERROR: ESLint rule 'react-hooks/exhaustive-deps' not found - FIXED by correcting ESLint comments in App.js 2) ❌ MISSING HYPERBEAM SDK: @hyperbeam/web package version 2.0.0 doesn't exist - FIXED by updating to correct version 0.0.37 3) ✅ BACKEND FULLY FUNCTIONAL: API key sk_test_JdZwpNJgNmT9146OlIhx8CZzerrk4PhofqwZv6Bxlkc works perfectly, all API endpoints operational 4) ✅ SESSION CREATION WORKING: Frontend successfully creates Hyperbeam sessions, iframe loads correctly, SDK fallback mode functional. ROOT CAUSE: Frontend compilation errors were blocking the app from loading properly, preventing users from accessing session creation functionality. With fixes applied, Hyperbeam session launch is now working."
+      -working: true
+      -agent: "testing"
+      -comment: "COMPREHENSIVE UI IMPROVEMENTS TESTING COMPLETED SUCCESSFULLY: ✅ UI FIXES VERIFIED: 'New Tab' button completely REMOVED (0 found), 'Terminate' button replaced with 'Close Session' button (0 terminate buttons, Close Session appears when session active) ✅ ENHANCED APP ICONS: All 6 default apps (YouTube, Netflix, Twitch, Spotify, Keepy Uppy, Magic Xylophone) display with proper names instead of just emojis ✅ BLUEY BACKGROUND SELECTOR: All 10 Bluey room backgrounds working (Lounge set as default), background switching functional on both desktop and mobile ✅ APPS & GAMES SECTION: Embedded Bluey games (Keepy Uppy, Magic Xylophone) launch properly in both Mock and Real Mode, 'Add Custom' button present and functional ✅ FULLSCREEN EXPERIENCE: Fullscreen controls appear correctly, chat overlay toggle (Hide/Show Chat) works, Exit Fullscreen functional ✅ SESSION MANAGEMENT: Real Mode session creation works with API key sk_test_JdZwpNJgNmT9146OlIhx8CZzerrk4PhofqwZv6Bxlkc, Close Session replaces Terminate functionality ✅ MOBILE RESPONSIVENESS: All features work on mobile viewport (375x844), background grid and apps grid adapt properly, scrolling reveals all content. All requested UI improvements are working perfectly."
   - task: "Mock Mode flows (create/share/join/terminate)"
     implemented: true
     working: true
