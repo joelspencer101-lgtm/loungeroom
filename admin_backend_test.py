@@ -326,25 +326,32 @@ def test_admin_cleanup_actual():
     """Test 6: POST /api/hb/admin/cleanup with dry_run=false"""
     print("\n6. Testing Admin Cleanup (Actual): POST /api/hb/admin/cleanup")
     
-    # First create a session to clean up
-    session_uuid = test_create_session()
-    if not session_uuid:
-        print("   ❌ FAIL: Could not create session for cleanup test")
-        return False
-    
+    # First clean up any existing sessions
     headers = {
         "X-Admin-Token": ADMIN_TOKEN,
         "Content-Type": "application/json"
     }
     
-    payload = {
-        "dry_run": False,
-        "idle_minutes": 0  # Clean up immediately
-    }
+    cleanup_payload = {"dry_run": False, "idle_minutes": 0}
+    requests.post(f"{BASE_URL}/hb/admin/cleanup", 
+                 json=cleanup_payload,
+                 headers=headers, 
+                 timeout=10)
+    
+    time.sleep(2)
+    
+    # Now create a session to clean up
+    session_uuid = test_create_session()
+    if not session_uuid:
+        print("   ❌ FAIL: Could not create session for cleanup test")
+        return False
+    
+    # Wait a moment then clean up
+    time.sleep(1)
     
     try:
         response = requests.post(f"{BASE_URL}/hb/admin/cleanup", 
-                               json=payload,
+                               json=cleanup_payload,
                                headers=headers, 
                                timeout=10)
         
