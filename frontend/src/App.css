@@ -25,13 +25,45 @@ body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI
 .ct-title { font-size: 28px; font-weight: 800; letter-spacing: 0.2px; }
 .ct-sub { font-size: 14px; color: var(--muted); margin-top: 6px; }
 
-/* Settings Panel */
-.ct-settings-panel { position: fixed; top: 0; right: 0; width: min(400px, 90vw); height: 100vh; background: rgba(15,23,42,0.95); border-left: 1px solid rgba(148,163,184,0.12); backdrop-filter: blur(12px); z-index: 30; overflow-y: auto; }
+/* Advanced Settings Panel */
+.ct-settings-panel { position: fixed; top: 0; right: 0; width: min(450px, 90vw); height: 100vh; background: rgba(15,23,42,0.95); border-left: 1px solid rgba(148,163,184,0.12); backdrop-filter: blur(12px); z-index: 30; overflow-y: auto; }
 .ct-settings-content { padding: 20px; }
 .ct-settings-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
 .ct-settings-header h3 { margin: 0; font-size: 18px; }
 .ct-settings-section { margin-bottom: 24px; }
 .ct-settings-section h4 { margin: 0 0 12px 0; font-size: 14px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+
+/* Extension Manager */
+.ct-extension-manager { background: rgba(2,6,23,0.6); border: 1px solid rgba(148,163,184,0.12); border-radius: 12px; padding: 16px; }
+.ct-section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.ct-section-header span { font-size: 16px; font-weight: 600; }
+.ct-add-extension-form { display: flex; gap: 8px; margin-bottom: 12px; }
+.ct-add-extension-form input { flex: 1; height: 36px; }
+.ct-extensions-list { display: flex; flex-direction: column; gap: 8px; }
+.ct-extension-item { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; }
+.ct-extension-info { display: flex; flex-direction: column; gap: 2px; }
+.ct-extension-name { font-size: 14px; font-weight: 600; }
+.ct-extension-status { font-size: 12px; opacity: 0.8; }
+.ct-extension-controls { display: flex; gap: 6px; }
+.ct-empty-extensions { text-align: center; padding: 16px; color: var(--muted); font-size: 13px; }
+
+/* Button sizes */
+.ct-small-btn { height: 36px; font-size: 13px; padding: 0 12px; }
+.ct-tiny-btn { height: 28px; font-size: 12px; padding: 0 8px; }
+
+/* Timeout Warning Modal */
+.ct-timeout-modal { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; background: rgba(0,0,0,0.8); backdrop-filter: blur(4px); }
+.ct-timeout-content { background: rgba(15,23,42,0.95); border: 1px solid rgba(148,163,184,0.12); border-radius: 16px; padding: 32px; text-align: center; max-width: 400px; margin: 20px; box-shadow: 0 20px 50px rgba(0,0,0,0.5); }
+.ct-timeout-icon { font-size: 48px; margin-bottom: 16px; }
+.ct-timeout-content h3 { margin: 0 0 16px 0; font-size: 24px; }
+.ct-timeout-content p { margin: 0 0 24px 0; color: var(--muted); line-height: 1.5; }
+.ct-timeout-buttons { display: flex; gap: 12px; justify-content: center; }
+
+/* Multicursor */
+.ct-multicursor-overlay { position: absolute; inset: 0; pointer-events: none; z-index: 70; }
+.ct-cursor { position: absolute; pointer-events: none; transition: all 0.1s ease; }
+.ct-cursor-pointer { width: 12px; height: 19px; color: #8b5cf6; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3)); }
+.ct-cursor-label { position: absolute; top: 20px; left: 0; background: #8b5cf6; color: white; font-size: 11px; padding: 2px 6px; border-radius: 4px; white-space: nowrap; font-weight: 600; }
 
 /* Desktop */
 .ct-desktop { position: fixed; inset: 0; z-index: 1; padding-top: 100px; }
@@ -68,7 +100,7 @@ body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI
 .ct-session-controls { position: absolute; top: 20px; left: 20px; z-index: 50; display: flex; gap: 8px; background: rgba(2,6,23,0.9); border: 1px solid rgba(255,255,255,0.14); border-radius: 12px; padding: 8px; backdrop-filter: blur(8px); }
 .ct-session-controls-fullscreen { position: fixed; }
 
-.ct-session-info { position: absolute; bottom: 20px; left: 20px; background: rgba(16,185,129,0.12); border: 1px solid rgba(16,185,129,0.35); color: #bbf7d0; font-size: 11px; padding: 6px 10px; border-radius: 8px; font-weight: 600; z-index: 50; }
+.ct-session-info { position: absolute; bottom: 20px; left: 20px; background: rgba(16,185,129,0.12); border: 1px solid rgba(16,185,129,0.35); color: #bbf7d0; font-size: 11px; padding: 6px 10px; border-radius: 8px; font-weight: 600; z-index: 50; max-width: calc(100vw - 40px); }
 
 /* Form elements */
 .ct-field { display: flex; flex-direction: column; margin-bottom: 12px; }
@@ -130,4 +162,7 @@ body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI
   .ct-bg-thumb { height: 35px; }
   .ct-chat-panel-fullscreen { left: 10px; bottom: 10px; right: 10px; max-width: none; }
   .ct-session-controls { top: 10px; left: 10px; }
+  .ct-timeout-content { margin: 10px; padding: 24px; }
+  .ct-timeout-buttons { flex-direction: column; }
+  .ct-session-info { font-size: 10px; padding: 4px 8px; }
 }

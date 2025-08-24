@@ -89,6 +89,127 @@ function DraggableChatHead({ id = "me", initial = "😀", color = "#8b5cf6", sto
   );
 }
 
+// Multicursor component for other users
+function MulticursorOverlay({ cursors }) {
+  return (
+    <div className="ct-multicursor-overlay">
+      {Object.entries(cursors).map(([userId, cursor]) => (
+        <div
+          key={userId}
+          className="ct-cursor"
+          style={{
+            left: cursor.x,
+            top: cursor.y,
+            borderColor: cursor.color,
+            transform: `translate(-2px, -2px)`
+          }}
+        >
+          <div className="ct-cursor-pointer" style={{ backgroundColor: cursor.color }}>
+            <svg width="12" height="19" viewBox="0 0 12 19" fill="none">
+              <path d="M0 0L0 14L4 10L6 15L8 14L6 9L12 9L0 0Z" fill="currentColor"/>
+            </svg>
+          </div>
+          <div className="ct-cursor-label" style={{ backgroundColor: cursor.color }}>
+            {cursor.name}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Timeout warning modal
+function TimeoutWarning({ show, timeLeft, onStayConnected, onDisconnect }) {
+  if (!show) return null;
+
+  return (
+    <div className="ct-timeout-modal">
+      <div className="ct-timeout-content">
+        <div className="ct-timeout-icon">⏰</div>
+        <h3>Still there?</h3>
+        <p>You've been inactive for a while. We'll disconnect in {timeLeft} seconds if you don't respond.</p>
+        <div className="ct-timeout-buttons">
+          <button className="btn primary" onClick={onStayConnected}>
+            Keep Hanging Out! 🎉
+          </button>
+          <button className="btn ghost" onClick={onDisconnect}>
+            Catch Ya Later! 👋
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Chrome Extension Manager
+function ExtensionManager({ extensions, onAddExtension, onRemoveExtension, onToggleExtension }) {
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newExtensionUrl, setNewExtensionUrl] = useState("");
+
+  const handleAddExtension = () => {
+    if (newExtensionUrl.trim()) {
+      onAddExtension(newExtensionUrl.trim());
+      setNewExtensionUrl("");
+      setShowAddForm(false);
+    }
+  };
+
+  return (
+    <div className="ct-extension-manager">
+      <div className="ct-section-header">
+        <span>Chrome Extensions</span>
+        <button className="btn ghost ct-small-btn" onClick={() => setShowAddForm(!showAddForm)}>
+          + Add
+        </button>
+      </div>
+      
+      {showAddForm && (
+        <div className="ct-add-extension-form">
+          <input
+            type="url"
+            placeholder="Extension .crx URL or Chrome Store ID"
+            value={newExtensionUrl}
+            onChange={(e) => setNewExtensionUrl(e.target.value)}
+          />
+          <button className="btn primary ct-small-btn" onClick={handleAddExtension}>
+            Add
+          </button>
+        </div>
+      )}
+
+      <div className="ct-extensions-list">
+        {extensions.map(ext => (
+          <div key={ext.id} className="ct-extension-item">
+            <div className="ct-extension-info">
+              <span className="ct-extension-name">{ext.name}</span>
+              <span className="ct-extension-status">
+                {ext.enabled ? "✅ Active" : "⚫ Disabled"}
+              </span>
+            </div>
+            <div className="ct-extension-controls">
+              <button 
+                className="btn ghost ct-tiny-btn" 
+                onClick={() => onToggleExtension(ext.id)}
+              >
+                {ext.enabled ? "Disable" : "Enable"}
+              </button>
+              <button 
+                className="btn danger ct-tiny-btn" 
+                onClick={() => onRemoveExtension(ext.id)}
+              >
+                Remove
+              </button>
+            </div>
+          </div>
+        ))}
+        {extensions.length === 0 && (
+          <div className="ct-empty-extensions">No extensions loaded</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // Draggable App Icon Component
 function DraggableAppIcon({ app, position, onPositionChange, onClick, onRemove, className = "" }) {
   const rootRef = useRef(null);
@@ -289,6 +410,19 @@ function App() {
   const [loopVideo, setLoopVideo] = useLocalStorage("ct_loop_video", "");
   const [mockMode, setMockMode] = useLocalStorage("ct_mock_mode", false);
 
+  // Advanced Hyperbeam features
+  const [persistenceEnabled, setPersistenceEnabled] = useLocalStorage("ct_persistence", true);
+  const [multicursorEnabled, setMulticursorEnabled] = useLocalStorage("ct_multicursor", true);
+  const [extensions, setExtensions] = useLocalStorage("ct_extensions", []);
+  const [cursors, setCursors] = useState({});
+
+  // Timeout management
+  const [showTimeoutWarning, setShowTimeoutWarning] = useState(false);
+  const [timeoutCountdown, setTimeoutCountdown] = useState(120);
+  const lastActivityRef = useRef(Date.now());
+  const timeoutWarningRef = useRef(null);
+  const disconnectTimeoutRef = useRef(null);
+
   // User's custom bookmarks and app positions
   const [customApps, setCustomApps] = useLocalStorage("ct_custom_apps", []);
   const [appPositions, setAppPositions] = useLocalStorage("ct_app_positions", {});
@@ -340,6 +474,76 @@ function App() {
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
   }, []);
 
+  // Activity tracking for timeout management
+  useEffect(() => {
+    const updateActivity = () => {
+      lastActivityRef.current = Date.now();
+      if (showTimeoutWarning) {
+        setShowTimeoutWarning(false);
+        if (timeoutWarningRef.current) clearTimeout(timeoutWarningRef.current);
+        if (disconnectTimeoutRef.current) clearTimeout(disconnectTimeoutRef.current);
+      }
+    };
+
+    const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click'];
+    events.forEach(event => {
+      document.addEventListener(event, updateActivity, true);
+    });
+
+    return () => {
+      events.forEach(event => {
+        document.removeEventListener(event, updateActivity, true);
+      });
+    };
+  }, [showTimeoutWarning]);
+
+  // Timeout management (58 minutes = 3480000ms, then 2-minute countdown)
+  useEffect(() => {
+    if (!session) return;
+
+    const checkActivity = () => {
+      const now = Date.now();
+      const timeSinceActivity = now - lastActivityRef.current;
+      const INACTIVE_THRESHOLD = 58 * 60 * 1000; // 58 minutes
+
+      if (timeSinceActivity >= INACTIVE_THRESHOLD && !showTimeoutWarning) {
+        setShowTimeoutWarning(true);
+        setTimeoutCountdown(120); // 2 minutes
+
+        // Start countdown
+        const countdownInterval = setInterval(() => {
+          setTimeoutCountdown(prev => {
+            if (prev <= 1) {
+              clearInterval(countdownInterval);
+              handleTimeoutDisconnect();
+              return 0;
+            }
+            return prev - 1;
+          });
+        }, 1000);
+
+        disconnectTimeoutRef.current = setTimeout(() => {
+          handleTimeoutDisconnect();
+        }, 120000); // 2 minutes
+      }
+    };
+
+    const activityTimer = setInterval(checkActivity, 30000); // Check every 30 seconds
+    return () => clearInterval(activityTimer);
+  }, [session, showTimeoutWarning]);
+
+  const handleTimeoutDisconnect = () => {
+    setShowTimeoutWarning(false);
+    closeSession();
+  };
+
+  const handleStayConnected = () => {
+    lastActivityRef.current = Date.now();
+    setShowTimeoutWarning(false);
+    if (timeoutWarningRef.current) clearTimeout(timeoutWarningRef.current);
+    if (disconnectTimeoutRef.current) clearTimeout(disconnectTimeoutRef.current);
+  };
+
   // Initialize app positions
   const allApps = useMemo(() => [...DEFAULT_APPS, ...customApps], [customApps]);
   
@@ -353,33 +557,136 @@ function App() {
     setAppPositions(prev => ({ ...prev, [appId]: position }));
   };
 
-  // Initialize Hyperbeam SDK when session active in real mode
+  // Advanced Hyperbeam SDK initialization with all features
   useEffect(() => {
     let destroyed = false;
 
-    async function initHB() {
+    async function initAdvancedHB() {
       if (!session || mockMode) { cleanupHB(); return; }
       setHbReady(false);
       setHbFallbackIframe(false);
+      
       try {
         const mod = await import("@hyperbeam/web");
         const Hyperbeam = mod.default || mod;
         if (!hbMountRef.current) return;
         if (hbClientRef.current) { try { hbClientRef.current.destroy(); } catch {} hbClientRef.current = null; }
-        const client = await Hyperbeam(hbMountRef.current, session.embed_url, { volume: browserVolume, timeout: 15000, delegateKeyboard: true });
+        
+        // Advanced configuration
+        const config = {
+          volume: browserVolume,
+          timeout: 15000,
+          delegateKeyboard: true,
+          // Persistence feature
+          persistence: persistenceEnabled ? {
+            enabled: true,
+            namespace: `ct_${user.id}_${session.session_uuid.slice(-8)}`
+          } : false,
+          // Multicursor feature
+          multicursor: multicursorEnabled ? {
+            enabled: true,
+            showCursors: true,
+            cursorColors: true
+          } : false,
+          // Custom Chrome extensions
+          extensions: extensions.filter(ext => ext.enabled).map(ext => ext.url),
+          // Dynamic resize capability
+          resize: {
+            enabled: true,
+            maintainAspectRatio: false
+          }
+        };
+
+        const client = await Hyperbeam(hbMountRef.current, session.embed_url, config);
         if (destroyed) { try { client.destroy(); } catch {} return; }
-        hbClientRef.current = client; setHbReady(true);
-      } catch (e) { console.error("HB SDK failed", e); setHbFallbackIframe(true); }
+        
+        hbClientRef.current = client;
+        
+        // Set up multicursor event handlers
+        if (multicursorEnabled && client.multicursor) {
+          client.multicursor.on('cursor', (data) => {
+            setCursors(prev => ({
+              ...prev,
+              [data.userId]: {
+                x: data.x,
+                y: data.y,
+                color: data.color || '#8b5cf6',
+                name: data.name || 'User'
+              }
+            }));
+          });
+
+          client.multicursor.on('cursor-leave', (data) => {
+            setCursors(prev => {
+              const newCursors = { ...prev };
+              delete newCursors[data.userId];
+              return newCursors;
+            });
+          });
+        }
+
+        // Set up resize handlers
+        if (client.resize) {
+          client.resize.on('size-changed', (data) => {
+            console.log('Browser resized:', data.width, 'x', data.height);
+          });
+        }
+
+        setHbReady(true);
+      } catch (e) { 
+        console.error("Advanced HB SDK failed", e); 
+        setHbFallbackIframe(true); 
+      }
     }
 
-    initHB();
+    initAdvancedHB();
     return () => { destroyed = true; cleanupHB(); };
     // eslint-disable-next-line
-  }, [session?.embed_url, mockMode]);
+  }, [session?.embed_url, mockMode, persistenceEnabled, multicursorEnabled, extensions]);
 
-  useEffect(() => { if (hbClientRef.current) { try { hbClientRef.current.volume = browserVolume; } catch {} } }, [browserVolume]);
+  useEffect(() => { 
+    if (hbClientRef.current) { 
+      try { 
+        hbClientRef.current.volume = browserVolume; 
+        
+        // Dynamic resize based on container
+        if (hbClientRef.current.resize && hbMountRef.current) {
+          const rect = hbMountRef.current.getBoundingClientRect();
+          hbClientRef.current.resize.setSize(rect.width, rect.height);
+        }
+      } catch {} 
+    } 
+  }, [browserVolume, isFullscreen]);
 
-  function cleanupHB() { if (hbClientRef.current) { try { hbClientRef.current.destroy(); } catch {} hbClientRef.current = null; } setHbReady(false); }
+  function cleanupHB() { 
+    if (hbClientRef.current) { 
+      try { hbClientRef.current.destroy(); } catch {} 
+      hbClientRef.current = null; 
+    } 
+    setHbReady(false); 
+    setCursors({});
+  }
+
+  // Extension management
+  const addExtension = (url) => {
+    const newExtension = {
+      id: Date.now().toString(),
+      name: url.includes('chrome.google.com') ? 'Chrome Store Extension' : 'Custom Extension',
+      url: url,
+      enabled: true
+    };
+    setExtensions(prev => [...prev, newExtension]);
+  };
+
+  const removeExtension = (id) => {
+    setExtensions(prev => prev.filter(ext => ext.id !== id));
+  };
+
+  const toggleExtension = (id) => {
+    setExtensions(prev => prev.map(ext => 
+      ext.id === id ? { ...ext, enabled: !ext.enabled } : ext
+    ));
+  };
 
   // Live connection management (WS first, then poll)
   const stopPolling = useCallback(() => { if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; } }, []);
@@ -513,21 +820,40 @@ function App() {
 
   const [chatText, setChatText] = useState("");
 
-  // Launch app/game
+  // Launch app/game with advanced Hyperbeam features
   const createSessionWithUrl = async (url) => {
     setLoading(true);
     setError("");
+    lastActivityRef.current = Date.now(); // Reset activity timer
+    
     try {
       if (mockMode) {
         const fake = { session_uuid: uuid(), embed_url: mockEmbedDataUrl(), created_at: new Date().toISOString(), metadata: { width: Number(size.width) || 1280, height: Number(size.height) || 720, start_url: url } };
         setSession(fake); setShareCode("");
       } else {
         if (!apiKey) { alert("Please paste your Hyperbeam API key"); return; }
-        const payload = { start_url: url, width: Number(size.width) || 1280, height: Number(size.height) || 720, kiosk: true, timeout_absolute: 3600, timeout_inactive: 1800 };
+        
+        // Enhanced payload with advanced features
+        const payload = { 
+          start_url: url, 
+          width: Number(size.width) || 1280, 
+          height: Number(size.height) || 720, 
+          kiosk: true, 
+          timeout_absolute: 3600, 
+          timeout_inactive: 1800,
+          // Advanced Hyperbeam features
+          persistence: persistenceEnabled,
+          multicursor: multicursorEnabled,
+          extensions: extensions.filter(ext => ext.enabled).map(ext => ext.url)
+        };
+        
         const res = await axios.post(`${API}/hb/sessions`, payload, { headers });
         setSession(res.data); setShareCode("");
       }
-    } catch (err) { console.error(err); setError(err?.response?.data?.detail || err.message || "Failed to create session"); }
+    } catch (err) { 
+      console.error(err); 
+      setError(err?.response?.data?.detail || err.message || "Failed to create session"); 
+    }
     finally { setLoading(false); }
   };
 
@@ -554,7 +880,21 @@ function App() {
         }
       }
     } catch (err) { console.error(err); setError(err?.response?.data?.detail || err.message || "Remote terminate error; marked inactive locally"); }
-    finally { cleanupHB(); setSession(null); setShareCode(""); stopPolling(); stopWS(); setLiveMode("none"); setOthers({}); setMessages([]); setLoading(false); }
+    finally { 
+      cleanupHB(); 
+      setSession(null); 
+      setShareCode(""); 
+      stopPolling(); 
+      stopWS(); 
+      setLiveMode("none"); 
+      setOthers({}); 
+      setMessages([]); 
+      setLoading(false);
+      // Reset timeout states
+      setShowTimeoutWarning(false);
+      if (timeoutWarningRef.current) clearTimeout(timeoutWarningRef.current);
+      if (disconnectTimeoutRef.current) clearTimeout(disconnectTimeoutRef.current);
+    }
   };
 
   const createShareCode = async () => {
@@ -635,6 +975,14 @@ function App() {
       <audio ref={chatAudioRef} src="https://cdn.pixabay.com/download/audio/2022/03/15/audio_ade9b8b35e.mp3?filename=ping-notification-180739.mp3" preload="auto" />
       {!session && loopVideo ? (<video className="ct-bg-video" src={loopVideo} autoPlay muted loop playsInline />) : null}
 
+      {/* Timeout Warning Modal */}
+      <TimeoutWarning 
+        show={showTimeoutWarning}
+        timeLeft={timeoutCountdown}
+        onStayConnected={handleStayConnected}
+        onDisconnect={handleTimeoutDisconnect}
+      />
+
       {!session ? (
         <>
           {/* Homepage - App Desktop */}
@@ -642,7 +990,7 @@ function App() {
             <div className="ct-header-row">
               <div>
                 <div className="ct-title">Coffee Table</div>
-                <div className="ct-sub">Your virtual browser desktop</div>
+                <div className="ct-sub">Advanced virtual browser with multicursor & persistence</div>
               </div>
               <div className="ct-header-actions">
                 <button className="btn ghost" onClick={() => setShowSettings(!showSettings)}>
@@ -652,12 +1000,12 @@ function App() {
             </div>
           </header>
 
-          {/* Settings Panel */}
+          {/* Advanced Settings Panel */}
           {showSettings && (
             <div className="ct-settings-panel">
               <div className="ct-settings-content">
                 <div className="ct-settings-header">
-                  <h3>Settings</h3>
+                  <h3>Advanced Settings</h3>
                   <button className="btn ghost" onClick={() => setShowSettings(false)}>×</button>
                 </div>
 
@@ -677,6 +1025,27 @@ function App() {
                     <input id="mockMode" type="checkbox" checked={!!mockMode} onChange={(e) => setMockMode(e.target.checked)} />
                     <label htmlFor="mockMode">Mock Mode (No API calls)</label>
                   </div>
+                </div>
+
+                <div className="ct-settings-section">
+                  <h4>Advanced Features</h4>
+                  <div className="ct-toggle">
+                    <input id="persistence" type="checkbox" checked={!!persistenceEnabled} onChange={(e) => setPersistenceEnabled(e.target.checked)} />
+                    <label htmlFor="persistence">🔄 Persistence (Save browser state)</label>
+                  </div>
+                  <div className="ct-toggle">
+                    <input id="multicursor" type="checkbox" checked={!!multicursorEnabled} onChange={(e) => setMulticursorEnabled(e.target.checked)} />
+                    <label htmlFor="multicursor">🖱️ Multicursor (Multiple user cursors)</label>
+                  </div>
+                </div>
+
+                <div className="ct-settings-section">
+                  <ExtensionManager 
+                    extensions={extensions}
+                    onAddExtension={addExtension}
+                    onRemoveExtension={removeExtension}
+                    onToggleExtension={toggleExtension}
+                  />
                 </div>
 
                 <div className="ct-settings-section">
@@ -730,7 +1099,7 @@ function App() {
 
         </>
       ) : (
-        /* Session View - Hyperbeam Browser */
+        /* Session View - Advanced Hyperbeam Browser */
         <div className="ct-session-view" ref={containerRef}>
           <div className={`ct-browser-container ${isFullscreen ? 'ct-browser-fullscreen' : ''}`}>
             <div className="ct-browser">
@@ -757,6 +1126,11 @@ function App() {
                 />
               )}
 
+              {/* Multicursor Overlay */}
+              {multicursorEnabled && !mockMode && (
+                <MulticursorOverlay cursors={cursors} />
+              )}
+
               {/* Session Controls */}
               <div className={`ct-session-controls ${isFullscreen ? 'ct-session-controls-fullscreen' : ''}`}>
                 <button className="btn ghost" onClick={closeSession} disabled={loading}>
@@ -778,9 +1152,12 @@ function App() {
                 </button>
               </div>
 
-              {/* Session Info */}
+              {/* Advanced Features Status */}
               <div className="ct-session-info">
                 {session.session_uuid} {shareCode ? `• ${shareCode}` : ""} {liveMode === 'ws' ? '• Live WS' : liveMode === 'poll' ? '• Live Poll' : ''}
+                {persistenceEnabled && !mockMode && " • 🔄 Persistent"}
+                {multicursorEnabled && !mockMode && " • 🖱️ Multicursor"}
+                {extensions.filter(e => e.enabled).length > 0 && !mockMode && ` • 🧩 ${extensions.filter(e => e.enabled).length} Extensions`}
               </div>
 
               {mockMode && <div className="ct-mock-label">MOCK</div>}
@@ -828,7 +1205,7 @@ function App() {
 
       {!session && (
         <footer className="ct-footer">
-          <span>Drag apps to arrange your desktop • Click apps to launch • Use Settings to customize</span>
+          <span>Drag apps to arrange your desktop • Click apps to launch • Advanced features: Persistence, Multicursor, Extensions</span>
         </footer>
       )}
     </div>
