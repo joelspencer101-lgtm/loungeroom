@@ -127,7 +127,7 @@
       -comment: "COMPREHENSIVE BACKEND TESTING COMPLETED: ✅ ALL 7 BASIC API TESTS PASSED: Health check (200), session creation (200), session retrieval (200), session termination (200), terminated session returns 410, missing auth returns 422 for both create/delete. ✅ EXTENDED TESTING PASSED: Multiple sessions (confirmed 2-session limit - 3rd session fails with 'err_exceeded_vm_limit' as expected), rooms functionality (create room I1RIBC, retrieve by code works perfectly), session longevity (sessions remain active, no immediate timeout). ✅ API KEY FULLY FUNCTIONAL: sk_test_JdZwpNJgNmT9146OlIhx8CZzerrk4PhofqwZv6Bxlkc works perfectly for all operations. CRITICAL FINDING: Backend integration is 100% functional - user's inability to launch sessions must be a FRONTEND or UI FLOW issue, not backend API problem."
   - task: "HB rooms endpoints (/api/hb/rooms)"
     implemented: true
-    working: "NA"
+    working: true
     file: "/app/backend/server.py"
     stuck_count: 0
     priority: "high"
@@ -139,6 +139,9 @@
       -working: "NA"
       -agent: "testing"
       -comment: "Cannot test rooms endpoints due to Hyperbeam API VM limit exceeded error. Session creation fails with 'err_exceeded_vm_limit' preventing room creation/join testing. Backend code appears correct but requires valid Hyperbeam plan to test."
+      -working: true
+      -agent: "testing"
+      -comment: "ROOMS FUNCTIONALITY FULLY WORKING: ✅ Session creation successful ✅ Room creation returns 200 with code I1RIBC ✅ Room retrieval by code works perfectly ✅ Session UUID matching confirmed ✅ All room endpoints functional. Previous VM limit issues resolved with new API key."
   - task: "Status routes baseline"
     implemented: true
     working: true
