@@ -405,7 +405,7 @@ async def post_room_event(code: str, event: EventIn):
     }
     lst = ROOM_EVENTS.setdefault(code, [])
     lst.append(payload)
-    if len(lst) &gt; MAX_EVENTS:
+    if len(lst) > MAX_EVENTS:
         del lst[: len(lst) - MAX_EVENTS]
     return {"ok": True, "id": seq}
 
@@ -417,8 +417,8 @@ async def get_room_events(code: str, since: int = Query(0, ge=0)):
         tail = lst[-50:]
         last_id = tail[-1]["id"] if tail else 0
         return {"events": tail, "last_id": last_id}
-    # Return events with id &gt; since
-    out = [e for e in lst if e["id"] &gt; since]
+    # Return events with id > since
+    out = [e for e in lst if e["id"] > since]
     last_id = lst[-1]["id"] if lst else since
     return {"events": out, "last_id": last_id}
 
@@ -516,10 +516,10 @@ async def admin_cleanup(payload: AdminCleanupIn):
             to_terminate.append(it)
 
     # Enforce max_active by oldest first
-    if max_active and max_active &gt; 0 and len(active) - len(to_terminate) &gt; max_active:
+    if max_active and max_active > 0 and len(active) - len(to_terminate) > max_active:
         remaining_after_idle = [it for it in active if it not in to_terminate]
         overflow = (len(remaining_after_idle) - max_active)
-        if overflow &gt; 0:
+        if overflow > 0:
             to_terminate.extend(remaining_after_idle[:overflow])
 
     # Deduplicate
