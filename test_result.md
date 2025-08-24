@@ -153,9 +153,9 @@
     implemented: true
     working: false
     file: "/app/frontend/src/App.js"
-    stuck_count: 0
+    stuck_count: 1
     priority: "high"
-    needs_retesting: false
+    needs_retesting: true
     status_history:
       -working: true
       -agent: "main"
@@ -175,6 +175,9 @@
       -working: false
       -agent: "testing"
       -comment: "REAL MODE TESTING COMPLETED: ✅ App loads correctly with 'Coffee Table' header ✅ Mock Mode OFF confirmed ✅ API key entry works ✅ SDK Fallback mode detected with proper 'SDK Fallback' label and disabled volume slider ✅ Share code creation and capture successful (e.g., Y1Q21O) ✅ Second context can join by code successfully ✅ Session termination and cleanup works properly ❌ CRITICAL BLOCKER: Hyperbeam API returns 'err_exceeded_vm_limit' preventing session creation in Real Mode ❌ WebSocket connections fail with 404 errors to /api/hb/ws/room/{code} ❌ Chat messages cannot be transmitted between contexts ❌ Presence/chat head synchronization not working due to WebSocket failures. Real Mode testing blocked by Hyperbeam plan limitations."
+      -working: false
+      -agent: "user"
+      -comment: "User reports continued inability to launch Hyperbeam sessions despite providing test API key sk_test_JdZwpNJgNmT9146OlIhx8CZzerrk4PhofqwZv6Bxlkc with alleged 2 session limit. Requests UI improvements and group call/camera functionality."
   - task: "Mock Mode flows (create/share/join/terminate)"
     implemented: true
     working: true
