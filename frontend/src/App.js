@@ -38,7 +38,7 @@ function DraggableChatHead({ id = "me", initial = "😀", color = "#8b5cf6", sto
   useEffect(() => {
     if (value?.pos) setPos(value.pos);
     if (value?.size) setSize(value.size);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line
     }, [value?.pos?.x, value?.pos?.y, value?.size]);
 
   useEffect(() => {
