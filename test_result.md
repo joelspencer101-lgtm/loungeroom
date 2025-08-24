@@ -255,14 +255,13 @@
 
 ## test_plan:
   current_focus:
-    - "Test provided Hyperbeam API key sk_test_JdZwpNJgNmT9146OlIhx8CZzerrk4PhofqwZv6Bxlkc for session creation"
-    - "Investigate why Real Mode Hyperbeam integration is not functional"
-    - "Fix Hyperbeam session creation issues"
+    - "Frontend investigation - user cannot launch sessions despite backend working perfectly"
+    - "UI flow debugging - session creation process on frontend"
+    - "Browser compatibility and iframe loading issues"
   stuck_tasks:
-    - "HB proxy endpoints (/api/hb) - user reports non-functional integration"
-    - "MVP UI: API key, create/terminate, embed iframe, customization - blocked by Hyperbeam issues"
+    - "MVP UI: API key, create/terminate, embed iframe, customization - user reports non-functional despite backend working"
   test_all: false
-  test_priority: "stuck_first"
+  test_priority: "frontend_investigation"
 
 ## agent_communication:
   -agent: "main"
