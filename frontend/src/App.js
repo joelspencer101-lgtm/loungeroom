@@ -1277,6 +1277,11 @@ function App() {
         ws.send(JSON.stringify({ type: "hello", user }));
       };
       ws.onmessage = (ev) => {
+      ws.onerror = () => {
+        // If WS fails, fall back to HTTP polling
+        setLiveMode("poll");
+        startPolling(code);
+      };
         try { const data = JSON.parse(ev.data); handleInboundEvent(data); } catch {}
       };
       ws.onclose = () => {
