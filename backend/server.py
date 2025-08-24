@@ -412,7 +412,7 @@ async def post_room_event(code: str, event: EventIn):
 @hb_router.get("/rooms/{code}/events", response_model=EventsOut)
 async def get_room_events(code: str, since: int = Query(0, ge=0)):
     lst = ROOM_EVENTS.get(code, [])
-    if since &lt;= 0:
+    if since <= 0:
         # Return the tail to avoid huge payloads
         tail = lst[-50:]
         last_id = tail[-1]["id"] if tail else 0
@@ -512,7 +512,7 @@ async def admin_cleanup(payload: AdminCleanupIn):
             last_dt = datetime.fromisoformat(last)
         except Exception:
             last_dt = now
-        if last_dt.replace(tzinfo=timezone.utc) &lt;= cutoff:
+        if last_dt.replace(tzinfo=timezone.utc) <= cutoff:
             to_terminate.append(it)
 
     # Enforce max_active by oldest first
