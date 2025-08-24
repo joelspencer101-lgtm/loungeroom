@@ -154,6 +154,40 @@
       -agent: "main"
       -comment: "Hello world and status_checks maintained."
 
+  - task: "Admin Session Janitor (list/cleanup/terminate)"
+    implemented: true
+    working: "NA"
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      -working: "NA"
+      -agent: "main"
+      -comment: "Added secured admin endpoints: GET /api/hb/admin/active, POST /api/hb/admin/cleanup (supports dry_run, idle_minutes, max_active), DELETE /api/hb/admin/sessions/{session_uuid}. Uses ADMIN_TOKEN header and HYPERBEAM_API_KEY from backend env. Added MAX_ACTIVE_SESSIONS enforcement and JANITOR_IDLE_MINUTES defaults."
+  - task: "MAX_ACTIVE enforcement for Test API plan"
+    implemented: true
+    working: "NA"
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      -working: "NA"
+      -agent: "main"
+      -comment: "POST /api/hb/sessions now returns 429 when active sessions >= MAX_ACTIVE_SESSIONS (env). Set to 1 in backend/.env to respect Hyperbeam test limit."
+  - task: "WebSocket Ingress guidance + self-verify plan"
+    implemented: true
+    working: "NA"
+    file: "/app/scripts/ingress-websocket-snippets.md"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+      -working: "NA"
+      -agent: "main"
+      -comment: "Added ingress examples for NGINX, Traefik, and HAProxy with proper /api/hb/ws/room routing and timeouts. Frontend keeps HTTP polling fallback for resilience."
+
 ## frontend:
   - task: "MVP UI: API key, create/terminate, embed iframe, customization"
     implemented: true
