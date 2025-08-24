@@ -27,6 +27,225 @@ function useLocalStorage(key, initialValue) {
   return [value, setValue];
 }
 
+// Pre-installed Chrome Extensions
+const PRE_INSTALLED_EXTENSIONS = [
+  {
+    id: "pre_extension_1",
+    name: "Extension 1",
+    url: "https://chromewebstore.google.com/detail/gdcfjidbchfpojnfifkgghbamkdmbdaf",
+    enabled: true,
+    isPreInstalled: true
+  },
+  {
+    id: "pre_extension_2", 
+    name: "Extension 2",
+    url: "https://chromewebstore.google.com/detail/mnjggcdmjocbbbhaepdhchncahnbgone",
+    enabled: true,
+    isPreInstalled: true
+  },
+  {
+    id: "pre_extension_3",
+    name: "Extension 3", 
+    url: "https://chromewebstore.google.com/detail/mpnfoddkacdjocmjaobmkcphfncdoogp",
+    enabled: true,
+    isPreInstalled: true
+  }
+];
+
+// Draggable Session Controls
+function DraggableSessionControls({ 
+  onCloseSession, 
+  onFullscreen, 
+  onChatToggle, 
+  onShareCode, 
+  isFullscreen, 
+  chatOverlay, 
+  loading, 
+  shareCode 
+}) {
+  const [position, setPosition] = useLocalStorage("ct_session_controls_pos", { x: 20, y: 20 });
+  const [isVisible, setIsVisible] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const dragRef = useRef(null);
+  const mouseActivityRef = useRef(null);
+
+  // Mouse activity detection
+  useEffect(() => {
+    let hideTimeout;
+
+    const handleMouseMove = () => {
+      setIsVisible(true);
+      clearTimeout(hideTimeout);
+      hideTimeout = setTimeout(() => {
+        if (!isDragging) {
+          setIsVisible(false);
+        }
+      }, 3000); // Hide after 3 seconds of inactivity
+    };
+
+    const handleMouseLeave = () => {
+      clearTimeout(hideTimeout);
+      hideTimeout = setTimeout(() => {
+        if (!isDragging) {
+          setIsVisible(false);
+        }
+      }, 1000);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseleave', handleMouseLeave);
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseleave', handleMouseLeave);
+      clearTimeout(hideTimeout);
+    };
+  }, [isDragging]);
+
+  // Drag functionality
+  useEffect(() => {
+    const element = dragRef.current;
+    if (!element) return;
+
+    let startX, startY, startPosX, startPosY;
+
+    const handleMouseDown = (e) => {
+      if (e.target.closest('button')) return; // Don't drag when clicking buttons
+      
+      setIsDragging(true);
+      startX = e.clientX;
+      startY = e.clientY;
+      startPosX = position.x;
+      startPosY = position.y;
+
+      const handleMouseMove = (e) => {
+        const deltaX = e.clientX - startX;
+        const deltaY = e.clientY - startY;
+        const newX = Math.max(0, Math.min(window.innerWidth - 300, startPosX + deltaX));
+        const newY = Math.max(0, Math.min(window.innerHeight - 50, startPosY + deltaY));
+        setPosition({ x: newX, y: newY });
+      };
+
+      const handleMouseUp = () => {
+        setIsDragging(false);
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+      };
+
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+    };
+
+    element.addEventListener('mousedown', handleMouseDown);
+
+    return () => {
+      element.removeEventListener('mousedown', handleMouseDown);
+    };
+  }, [position]);
+
+  return (
+    <div 
+      ref={dragRef}
+      className={`ct-session-controls-draggable ${isVisible ? 'visible' : 'hidden'} ${isDragging ? 'dragging' : ''}`}
+      style={{ left: position.x, top: position.y }}
+    >
+      <div className="ct-drag-handle">⋮⋮</div>
+      <div className="ct-controls-buttons">
+        <button className="btn ghost" onClick={onCloseSession} disabled={loading}>
+          {loading ? "Closing..." : "← Desktop"}
+        </button>
+        <button className="btn ghost" onClick={onFullscreen}>
+          {isFullscreen ? "Exit FS" : "Fullscreen"}
+        </button>
+        {isFullscreen && (
+          <button className="btn ghost" onClick={onChatToggle}>
+            {chatOverlay ? "Hide Chat" : "Show Chat"}
+          </button>
+        )}
+        <button className="btn ghost" onClick={onShareCode} disabled={loading || !!shareCode}>
+          {shareCode ? `${shareCode}` : "Share"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// Custom Icon Upload Component
+function IconUploader({ onIconSelect, currentIcon }) {
+  const [uploadedIcons, setUploadedIcons] = useLocalStorage("ct_uploaded_icons", []);
+  const fileInputRef = useRef(null);
+
+  const handleFileUpload = (event) => {
+    const file = event.target.files[0];
+    if (file && file.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const iconData = {
+          id: `uploaded_${Date.now()}`,
+          name: file.name,
+          dataUrl: e.target.result,
+          uploaded: true
+        };
+        setUploadedIcons(prev => [...prev, iconData]);
+        onIconSelect(iconData);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const defaultIcons = [
+    { id: 'age_restriction', emoji: '18+', name: 'Age Restriction' },
+    { id: 'gaming_console', emoji: '🎮', name: 'Gaming Console' },
+    { id: 'popcorn_movies', emoji: '🍿', name: 'Movies & Entertainment' },
+    { id: 'retro_tv', emoji: '📺', name: 'Retro TV' },
+    { id: 'sports', emoji: '🏀', name: 'Sports' }
+  ];
+
+  return (
+    <div className="ct-icon-uploader">
+      <div className="ct-icon-grid">
+        {defaultIcons.map(icon => (
+          <button
+            key={icon.id}
+            className={`ct-icon-option ${currentIcon?.id === icon.id ? 'selected' : ''}`}
+            onClick={() => onIconSelect(icon)}
+            title={icon.name}
+          >
+            <span className="ct-icon-emoji">{icon.emoji}</span>
+          </button>
+        ))}
+        
+        {uploadedIcons.map(icon => (
+          <button
+            key={icon.id}
+            className={`ct-icon-option ${currentIcon?.id === icon.id ? 'selected' : ''}`}
+            onClick={() => onIconSelect(icon)}
+            title={icon.name}
+          >
+            <img src={icon.dataUrl} alt={icon.name} className="ct-uploaded-icon" />
+          </button>
+        ))}
+        
+        <button 
+          className="ct-icon-upload-btn"
+          onClick={() => fileInputRef.current?.click()}
+          title="Upload custom icon"
+        >
+          <span>+</span>
+        </button>
+      </div>
+      
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        onChange={handleFileUpload}
+        style={{ display: 'none' }}
+      />
+    </div>
+  );
+}
+
 // Video Chat Head with WebRTC integration
 function VideoChatHead({ 
   id = "me", 
@@ -203,7 +422,7 @@ function TimeoutWarning({ show, timeLeft, onStayConnected, onDisconnect }) {
   );
 }
 
-// Chrome Extension Manager
+// Chrome Extension Manager with Pre-installed Extensions
 function ExtensionManager({ extensions, onAddExtension, onRemoveExtension, onToggleExtension }) {
   const [showAddForm, setShowAddForm] = useState(false);
   const [newExtensionUrl, setNewExtensionUrl] = useState("");
@@ -243,7 +462,9 @@ function ExtensionManager({ extensions, onAddExtension, onRemoveExtension, onTog
         {extensions.map(ext => (
           <div key={ext.id} className="ct-extension-item">
             <div className="ct-extension-info">
-              <span className="ct-extension-name">{ext.name}</span>
+              <span className="ct-extension-name">
+                {ext.name} {ext.isPreInstalled && <span className="ct-pre-installed">📌</span>}
+              </span>
               <span className="ct-extension-status">
                 {ext.enabled ? "✅ Active" : "⚫ Disabled"}
               </span>
@@ -255,18 +476,99 @@ function ExtensionManager({ extensions, onAddExtension, onRemoveExtension, onTog
               >
                 {ext.enabled ? "Disable" : "Enable"}
               </button>
-              <button 
-                className="btn danger ct-tiny-btn" 
-                onClick={() => onRemoveExtension(ext.id)}
-              >
-                Remove
-              </button>
+              {!ext.isPreInstalled && (
+                <button 
+                  className="btn danger ct-tiny-btn" 
+                  onClick={() => onRemoveExtension(ext.id)}
+                >
+                  Remove
+                </button>
+              )}
             </div>
           </div>
         ))}
         {extensions.length === 0 && (
           <div className="ct-empty-extensions">No extensions loaded</div>
         )}
+      </div>
+    </div>
+  );
+}
+
+// Enhanced App Creation Modal
+function AppCreationModal({ show, onClose, onSave }) {
+  const [appData, setAppData] = useState({
+    name: "",
+    url: "",
+    selectedIcon: null
+  });
+
+  const handleSave = () => {
+    if (appData.name && appData.url && appData.selectedIcon) {
+      onSave({
+        ...appData,
+        id: `custom-${Date.now()}`,
+        icon: appData.selectedIcon.uploaded ? appData.selectedIcon.dataUrl : appData.selectedIcon.emoji,
+        color: "#ffffff",
+        bg: "linear-gradient(135deg, #667eea, #764ba2)",
+        isCustom: true,
+        defaultPosition: { x: 100 + Math.random() * 300, y: 200 + Math.random() * 200 }
+      });
+      setAppData({ name: "", url: "", selectedIcon: null });
+      onClose();
+    }
+  };
+
+  if (!show) return null;
+
+  return (
+    <div className="ct-modal-overlay">
+      <div className="ct-modal-content">
+        <div className="ct-modal-header">
+          <h3>Create Custom App</h3>
+          <button className="btn ghost" onClick={onClose}>×</button>
+        </div>
+        
+        <div className="ct-modal-body">
+          <div className="ct-field">
+            <label>App Name</label>
+            <input 
+              type="text"
+              value={appData.name}
+              onChange={(e) => setAppData({...appData, name: e.target.value})}
+              placeholder="My Custom App"
+            />
+          </div>
+          
+          <div className="ct-field">
+            <label>App URL</label>
+            <input 
+              type="url"
+              value={appData.url}
+              onChange={(e) => setAppData({...appData, url: e.target.value})}
+              placeholder="https://example.com"
+            />
+          </div>
+          
+          <div className="ct-field">
+            <label>Choose Icon</label>
+            <IconUploader 
+              currentIcon={appData.selectedIcon}
+              onIconSelect={(icon) => setAppData({...appData, selectedIcon: icon})}
+            />
+          </div>
+        </div>
+        
+        <div className="ct-modal-footer">
+          <button className="btn ghost" onClick={onClose}>Cancel</button>
+          <button 
+            className="btn primary" 
+            onClick={handleSave}
+            disabled={!appData.name || !appData.url || !appData.selectedIcon}
+          >
+            Create App
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -346,7 +648,11 @@ function DraggableAppIcon({ app, position, onPositionChange, onClick, onRemove, 
     >
       <div className="ct-app-icon-content">
         <div className="ct-app-icon-symbol" style={{ color: app.color }}>
-          {app.icon}
+          {app.icon?.startsWith('data:') ? (
+            <img src={app.icon} alt={app.name} className="ct-app-custom-icon" />
+          ) : (
+            app.icon || "🌐"
+          )}
         </div>
         <div className="ct-app-icon-name">{app.name}</div>
       </div>
@@ -476,7 +782,7 @@ function App() {
   // Advanced Hyperbeam features
   const [persistenceEnabled, setPersistenceEnabled] = useLocalStorage("ct_persistence", true);
   const [multicursorEnabled, setMulticursorEnabled] = useLocalStorage("ct_multicursor", true);
-  const [extensions, setExtensions] = useLocalStorage("ct_extensions", []);
+  const [extensions, setExtensions] = useLocalStorage("ct_extensions", PRE_INSTALLED_EXTENSIONS);
   const [cursors, setCursors] = useState({});
 
   // Video chat features
@@ -497,8 +803,9 @@ function App() {
   const [customApps, setCustomApps] = useLocalStorage("ct_custom_apps", []);
   const [appPositions, setAppPositions] = useLocalStorage("ct_app_positions", {});
 
-  // Settings panel visibility
+  // UI States
   const [showSettings, setShowSettings] = useState(false);
+  const [showAppModal, setShowAppModal] = useState(false);
 
   // Fullscreen and chat overlay states
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -543,6 +850,13 @@ function App() {
     document.addEventListener('fullscreenchange', handleFullscreenChange);
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
   }, []);
+
+  // Initialize extensions with pre-installed ones if not already set
+  useEffect(() => {
+    if (extensions.length === 0) {
+      setExtensions(PRE_INSTALLED_EXTENSIONS);
+    }
+  }, [extensions.length, setExtensions]);
 
   // WebRTC Video Chat Setup
   const initializeWebRTC = useCallback(async () => {
@@ -796,7 +1110,7 @@ function App() {
     setAppPositions(prev => ({ ...prev, [appId]: position }));
   };
 
-  // Advanced Hyperbeam SDK initialization with all features
+  // Advanced Hyperbeam SDK initialization with all features including pre-installed extensions
   useEffect(() => {
     let destroyed = false;
 
@@ -811,7 +1125,7 @@ function App() {
         if (!hbMountRef.current) return;
         if (hbClientRef.current) { try { hbClientRef.current.destroy(); } catch {} hbClientRef.current = null; }
         
-        // Advanced configuration
+        // Advanced configuration with pre-installed extensions
         const config = {
           volume: browserVolume,
           timeout: 15000,
@@ -827,7 +1141,7 @@ function App() {
             showCursors: true,
             cursorColors: true
           } : false,
-          // Custom Chrome extensions
+          // Custom Chrome extensions including pre-installed ones
           extensions: extensions.filter(ext => ext.enabled).map(ext => ext.url),
           // Dynamic resize capability
           resize: {
@@ -912,7 +1226,8 @@ function App() {
       id: Date.now().toString(),
       name: url.includes('chrome.google.com') ? 'Chrome Store Extension' : 'Custom Extension',
       url: url,
-      enabled: true
+      enabled: true,
+      isPreInstalled: false
     };
     setExtensions(prev => [...prev, newExtension]);
   };
@@ -1075,7 +1390,7 @@ function App() {
 
   const [chatText, setChatText] = useState("");
 
-  // Launch app/game with advanced Hyperbeam features
+  // Launch app/game with advanced Hyperbeam features including pre-installed extensions
   const createSessionWithUrl = async (url) => {
     setLoading(true);
     setError("");
@@ -1088,7 +1403,7 @@ function App() {
       } else {
         if (!apiKey) { alert("Please paste your Hyperbeam API key"); return; }
         
-        // Enhanced payload with advanced features
+        // Enhanced payload with advanced features including pre-installed extensions
         const payload = { 
           start_url: url, 
           width: Number(size.width) || 1280, 
@@ -1199,24 +1514,9 @@ function App() {
     createSessionWithUrl(app.url);
   };
 
-  // Add custom app
-  const addCustomApp = () => {
-    const name = prompt("App name:");
-    if (!name) return;
-    const url = prompt("App URL:");
-    if (!url) return;
-    const icon = prompt("Icon (single character):", "🌐");
-    const app = {
-      id: `custom-${Date.now()}`,
-      name,
-      url,
-      icon: icon || "🌐",
-      color: "#ffffff",
-      bg: "linear-gradient(135deg, #667eea, #764ba2)",
-      isCustom: true,
-      defaultPosition: { x: 100 + Math.random() * 300, y: 200 + Math.random() * 200 }
-    };
-    setCustomApps(prev => [...prev, app]);
+  // Enhanced app creation
+  const handleCreateApp = (appData) => {
+    setCustomApps(prev => [...prev, appData]);
   };
 
   // Remove custom app
@@ -1244,6 +1544,13 @@ function App() {
         timeLeft={timeoutCountdown}
         onStayConnected={handleStayConnected}
         onDisconnect={handleTimeoutDisconnect}
+      />
+
+      {/* App Creation Modal */}
+      <AppCreationModal 
+        show={showAppModal}
+        onClose={() => setShowAppModal(false)}
+        onSave={handleCreateApp}
       />
 
       {!session ? (
@@ -1350,7 +1657,7 @@ function App() {
 
                 <div className="ct-settings-section">
                   <h4>Add Custom App</h4>
-                  <button className="btn primary" onClick={addCustomApp}>+ Add Custom App</button>
+                  <button className="btn primary" onClick={() => setShowAppModal(true)}>+ Add Custom App</button>
                 </div>
 
                 {error && <div className="ct-alert error">{String(error)}</div>}
@@ -1406,26 +1713,17 @@ function App() {
                 <MulticursorOverlay cursors={cursors} />
               )}
 
-              {/* Session Controls */}
-              <div className={`ct-session-controls ${isFullscreen ? 'ct-session-controls-fullscreen' : ''}`}>
-                <button className="btn ghost" onClick={closeSession} disabled={loading}>
-                  {loading ? "Closing..." : "← Back to Desktop"}
-                </button>
-                <button className="btn ghost" onClick={enterFullscreen}>
-                  {isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
-                </button>
-                {isFullscreen && (
-                  <button 
-                    className="btn ghost" 
-                    onClick={() => setChatOverlay(!chatOverlay)}
-                  >
-                    {chatOverlay ? "Hide Chat" : "Show Chat"}
-                  </button>
-                )}
-                <button className="btn ghost" onClick={createShareCode} disabled={loading || !!shareCode}>
-                  {shareCode ? `Code: ${shareCode}` : "Share"}
-                </button>
-              </div>
+              {/* Mouse-Interactive Draggable Session Controls */}
+              <DraggableSessionControls
+                onCloseSession={closeSession}
+                onFullscreen={enterFullscreen}
+                onChatToggle={() => setChatOverlay(!chatOverlay)}
+                onShareCode={createShareCode}
+                isFullscreen={isFullscreen}
+                chatOverlay={chatOverlay}
+                loading={loading}
+                shareCode={shareCode}
+              />
 
               {/* Advanced Features Status */}
               <div className="ct-session-info">
