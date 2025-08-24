@@ -92,7 +92,7 @@ class HBSessionResponse(BaseModel):
 
 async def _validate_api_key(authorization: str = Header(...)) -> str:
     if not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Invalid authorization header. Use 'Bearer &lt;api_key&gt;'")
+        raise HTTPException(status_code=401, detail="Invalid authorization header. Use 'Bearer <api_key>'")
     return authorization.split("Bearer ", 1)[1]
 
 # Admin token dependency
