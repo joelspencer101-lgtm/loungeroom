@@ -1712,6 +1712,21 @@ function App() {
                   className="ct-hyperbeam-mount"
                 />
               )}
+              {/* WS Connectivity indicator & self-test */}
+              <div style={{ position: "absolute", top: 20, right: 20, zIndex: 60 }}>
+                <button className="btn ghost" onClick={() => {
+                  if (!shareCode) return;
+                  try {
+                    if (wsRef.current && liveMode === "ws") {
+                      wsRef.current.send(JSON.stringify({ type: "chat", text: "WS self-test ping", user }));
+                    } else {
+                      postEvent(shareCode, { type: "chat", text: "Poll self-test ping", user });
+                    }
+                  } catch (e) {}
+                }}>
+                  {liveMode === 'ws' ? '• WS Connected' : liveMode === 'poll' ? '• Live Poll' : '• Offline'}
+                </button>
+              </div>
 
               {/* Multicursor Overlay */}
               {multicursorEnabled && !mockMode && (
