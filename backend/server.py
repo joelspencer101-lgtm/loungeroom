@@ -123,9 +123,9 @@ async def hb_health():
 @hb_router.post("/sessions", response_model=HBSessionResponse)
 async def hb_create_session(payload: HBCreatePayload, api_key: str = Depends(_validate_api_key)):
     # Optional enforcement to respect test plan limits
-    if MAX_ACTIVE and MAX_ACTIVE &gt; 0:
+    if MAX_ACTIVE and MAX_ACTIVE > 0:
         active_count = await db.hb_sessions.count_documents({"is_active": True})
-        if active_count &gt;= MAX_ACTIVE:
+        if active_count >= MAX_ACTIVE:
             raise HTTPException(status_code=429, detail=f"Max active sessions reached ({MAX_ACTIVE}). Use admin cleanup to free capacity.")
 
     body = {
