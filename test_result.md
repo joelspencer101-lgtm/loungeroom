@@ -156,15 +156,18 @@
 
   - task: "Admin Session Janitor (list/cleanup/terminate)"
     implemented: true
-    working: "NA"
+    working: true
     file: "/app/backend/server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       -working: "NA"
       -agent: "main"
       -comment: "Added secured admin endpoints: GET /api/hb/admin/active, POST /api/hb/admin/cleanup (supports dry_run, idle_minutes, max_active), DELETE /api/hb/admin/sessions/{session_uuid}. Uses ADMIN_TOKEN header and HYPERBEAM_API_KEY from backend env. Added MAX_ACTIVE_SESSIONS enforcement and JANITOR_IDLE_MINUTES defaults."
+      -working: true
+      -agent: "testing"
+      -comment: "COMPREHENSIVE ADMIN ENDPOINTS TESTING COMPLETED SUCCESSFULLY: ✅ GET /api/hb/admin/active: Returns list of active sessions with age_minutes, requires X-Admin-Token header (401 without token) ✅ POST /api/hb/admin/cleanup (dry_run=true): Returns would_terminate list without actually terminating sessions ✅ POST /api/hb/admin/cleanup (dry_run=false): Successfully terminates sessions and returns terminated list with count ✅ DELETE /api/hb/admin/sessions/{uuid}: Successfully terminates specific session using X-Admin-Token header ✅ Admin authentication: All admin endpoints properly require X-Admin-Token header, return 401 without valid token ✅ Environment variables: ADMIN_TOKEN=ct_admin_yPT4V9qJb2QHn7M3sLx8A1kR5cD0eWgZ and HYPERBEAM_API_KEY=sk_test_JdZwpNJgNmT9146OlIhx8CZzerrk4PhofqwZv6Bxlkc working correctly. All admin session janitor functionality is working perfectly."
   - task: "MAX_ACTIVE enforcement for Test API plan"
     implemented: true
     working: "NA"
