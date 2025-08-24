@@ -260,10 +260,7 @@
   run_ui: false
 
 ## test_plan:
-  current_focus:
-    - "Test all new UI improvements: removed New Tab button, enhanced fullscreen with chat overlay, better app icons, quick background selector, Bluey games integration"
-    - "Verify Close Session functionality, custom app bookmarks, and mobile responsiveness"
-    - "Test Bluey background switching and default Lounge background"
+  current_focus: []
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
