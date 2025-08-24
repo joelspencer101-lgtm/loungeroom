@@ -27,10 +27,25 @@ function useLocalStorage(key, initialValue) {
   return [value, setValue];
 }
 
-function DraggableChatHead({ id = "me", initial = "😀", color = "#8b5cf6", storageKey = "ct_chat_head", value, onChange }) {
+// Video Chat Head with WebRTC integration
+function VideoChatHead({ 
+  id = "me", 
+  initial = "😀", 
+  color = "#8b5cf6", 
+  storageKey = "ct_chat_head", 
+  value, 
+  onChange,
+  isMe = false,
+  onVideoToggle,
+  onAudioToggle,
+  videoEnabled = false,
+  audioEnabled = false,
+  stream = null 
+}) {
   const rootRef = useRef(null);
+  const videoRef = useRef(null);
   const [pos, setPos] = useLocalStorage(`${storageKey}_pos`, value?.pos || { x: 24, y: 24 });
-  const [size, setSize] = useLocalStorage(`${storageKey}_size`, value?.size || 64);
+  const [size, setSize] = useLocalStorage(`${storageKey}_size`, value?.size || 80);
   const dragging = useRef(false);
   const resizing = useRef(false);
   const start = useRef({ x: 0, y: 0, px: 0, py: 0, s: 0 });
@@ -41,12 +56,21 @@ function DraggableChatHead({ id = "me", initial = "😀", color = "#8b5cf6", sto
     // eslint-disable-next-line
     }, [value?.pos?.x, value?.pos?.y, value?.size]);
 
+  // Set up video stream
+  useEffect(() => {
+    if (videoRef.current && stream) {
+      videoRef.current.srcObject = stream;
+    }
+  }, [stream]);
+
   useEffect(() => {
     const el = rootRef.current;
     if (!el) return;
     const onPointerDown = (e) => {
       if (e.target.getAttribute("data-resizer") === "1") {
         resizing.current = true;
+      } else if (e.target.closest('.ct-video-controls')) {
+        return; // Don't drag when clicking video controls
       } else {
         dragging.current = true;
       }
@@ -60,7 +84,7 @@ function DraggableChatHead({ id = "me", initial = "😀", color = "#8b5cf6", sto
       let nextPos = pos;
       let nextSize = size;
       if (dragging.current) nextPos = { x: Math.max(0, start.current.px + dx), y: Math.max(0, start.current.py + dy) };
-      if (resizing.current) nextSize = Math.max(48, Math.min(200, start.current.s + dx));
+      if (resizing.current) nextSize = Math.max(60, Math.min(300, start.current.s + dx));
       setPos(nextPos);
       setSize(nextSize);
       onChange?.({ pos: nextPos, size: nextSize });
@@ -80,10 +104,48 @@ function DraggableChatHead({ id = "me", initial = "😀", color = "#8b5cf6", sto
   }, [pos, size, onChange]);
 
   return (
-    <div ref={rootRef} className="ct-chat-head" style={{ left: pos.x, top: pos.y, width: size, height: size, background: color }}>
-      <div className="ct-chat-initial" style={{ fontSize: Math.max(20, size / 2.8) }} title="Drag to move">
-        {initial}
-      </div>
+    <div 
+      ref={rootRef} 
+      className={`ct-chat-head ct-video-chat-head ${videoEnabled ? 'ct-video-active' : ''}`} 
+      style={{ left: pos.x, top: pos.y, width: size, height: size, background: videoEnabled ? 'transparent' : color }}
+    >
+      {videoEnabled && stream ? (
+        <>
+          <video 
+            ref={videoRef} 
+            className="ct-video-stream" 
+            autoPlay 
+            muted={isMe} 
+            playsInline
+            style={{ width: size, height: size }}
+          />
+          {!audioEnabled && <div className="ct-muted-indicator">🔇</div>}
+        </>
+      ) : (
+        <div className="ct-chat-initial" style={{ fontSize: Math.max(20, size / 2.8) }} title="Drag to move">
+          {initial}
+        </div>
+      )}
+      
+      {isMe && (
+        <div className="ct-video-controls">
+          <button 
+            className={`ct-video-btn ${videoEnabled ? 'active' : ''}`}
+            onClick={onVideoToggle}
+            title={videoEnabled ? "Turn off camera" : "Turn on camera"}
+          >
+            {videoEnabled ? "📹" : "📷"}
+          </button>
+          <button 
+            className={`ct-video-btn ${audioEnabled ? 'active' : ''}`}
+            onClick={onAudioToggle}
+            title={audioEnabled ? "Mute" : "Unmute"}
+          >
+            {audioEnabled ? "🎤" : "🔇"}
+          </button>
+        </div>
+      )}
+      
       <div className="ct-resizer" data-resizer="1" title="Drag to resize" />
     </div>
   );
@@ -221,7 +283,8 @@ function DraggableAppIcon({ app, position, onPositionChange, onClick, onRemove, 
     if (!el) return;
     
     const onPointerDown = (e) => {
-      if (e.target.closest('.ct-remove-app')) return; // Don't drag when clicking remove button
+      const removeBtn = e.target.closest('.ct-remove-app');
+      if (removeBtn) return; // Don't drag when clicking remove button
       dragging.current = true;
       start.current = { x: e.clientX, y: e.clientY, px: position.x, py: position.y };
       el.setPointerCapture(e.pointerId);
@@ -248,7 +311,7 @@ function DraggableAppIcon({ app, position, onPositionChange, onClick, onRemove, 
       }
     };
     
-    const onClick = (e) => {
+    const onClickHandler = (e) => {
       if (!dragging.current && !e.target.closest('.ct-remove-app')) {
         onClick(app);
       }
@@ -257,13 +320,13 @@ function DraggableAppIcon({ app, position, onPositionChange, onClick, onRemove, 
     el.addEventListener("pointerdown", onPointerDown);
     window.addEventListener("pointermove", onPointerMove);
     window.addEventListener("pointerup", onPointerUp);
-    el.addEventListener("click", onClick);
+    el.addEventListener("click", onClickHandler);
     
     return () => {
       el.removeEventListener("pointerdown", onPointerDown);
       window.removeEventListener("pointermove", onPointerMove);
       window.removeEventListener("pointerup", onPointerUp);
-      el.removeEventListener("click", onClick);
+      el.removeEventListener("click", onClickHandler);
     };
   }, [app, position, onPositionChange, onClick]);
 
@@ -416,6 +479,13 @@ function App() {
   const [extensions, setExtensions] = useLocalStorage("ct_extensions", []);
   const [cursors, setCursors] = useState({});
 
+  // Video chat features
+  const [videoEnabled, setVideoEnabled] = useLocalStorage("ct_video_enabled", false);
+  const [audioEnabled, setAudioEnabled] = useLocalStorage("ct_audio_enabled", false);
+  const [localStream, setLocalStream] = useState(null);
+  const [remoteStreams, setRemoteStreams] = useState({}); // userId -> stream
+  const [peerConnections, setPeerConnections] = useState({}); // userId -> RTCPeerConnection
+
   // Timeout management
   const [showTimeoutWarning, setShowTimeoutWarning] = useState(false);
   const [timeoutCountdown, setTimeoutCountdown] = useState(120);
@@ -472,6 +542,175 @@ function App() {
     };
     document.addEventListener('fullscreenchange', handleFullscreenChange);
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
+  // WebRTC Video Chat Setup
+  const initializeWebRTC = useCallback(async () => {
+    try {
+      if (localStream) {
+        localStream.getTracks().forEach(track => track.stop());
+      }
+      
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: videoEnabled,
+        audio: audioEnabled
+      });
+      
+      setLocalStream(stream);
+      
+      // Enable/disable tracks based on settings
+      stream.getVideoTracks().forEach(track => {
+        track.enabled = videoEnabled;
+      });
+      stream.getAudioTracks().forEach(track => {
+        track.enabled = audioEnabled;
+      });
+      
+    } catch (error) {
+      console.error('Error accessing media devices:', error);
+      setVideoEnabled(false);
+      setAudioEnabled(false);
+    }
+  }, [videoEnabled, audioEnabled, localStream]);
+
+  // Initialize WebRTC when video/audio settings change
+  useEffect(() => {
+    if (videoEnabled || audioEnabled) {
+      initializeWebRTC();
+    } else {
+      // Stop all tracks when disabled
+      if (localStream) {
+        localStream.getTracks().forEach(track => track.stop());
+        setLocalStream(null);
+      }
+    }
+    // eslint-disable-next-line
+  }, [videoEnabled, audioEnabled]);
+
+  // WebRTC signaling through existing chat system
+  const sendWebRTCSignal = useCallback((signal, targetUserId = null) => {
+    if (!shareCode) return;
+    const payload = { 
+      type: "webrtc_signal", 
+      signal, 
+      targetUserId,
+      user 
+    };
+    if (wsRef.current && liveMode === "ws") {
+      try { wsRef.current.send(JSON.stringify(payload)); } catch {}
+    } else {
+      postEvent(shareCode, payload);
+    }
+  }, [shareCode, liveMode, user]);
+
+  // Create peer connection for a user
+  const createPeerConnection = useCallback((userId) => {
+    const pc = new RTCPeerConnection({
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' }
+      ]
+    });
+
+    // Add local stream tracks
+    if (localStream) {
+      localStream.getTracks().forEach(track => {
+        pc.addTrack(track, localStream);
+      });
+    }
+
+    // Handle incoming stream
+    pc.ontrack = (event) => {
+      const [remoteStream] = event.streams;
+      setRemoteStreams(prev => ({
+        ...prev,
+        [userId]: remoteStream
+      }));
+    };
+
+    // Handle ICE candidates
+    pc.onicecandidate = (event) => {
+      if (event.candidate) {
+        sendWebRTCSignal({
+          type: 'ice-candidate',
+          candidate: event.candidate
+        }, userId);
+      }
+    };
+
+    setPeerConnections(prev => ({
+      ...prev,
+      [userId]: pc
+    }));
+
+    return pc;
+  }, [localStream, sendWebRTCSignal]);
+
+  // Handle WebRTC signaling
+  const handleWebRTCSignal = useCallback(async (data) => {
+    const { signal, user: signalUser } = data;
+    const userId = signalUser.id;
+    
+    if (userId === user.id) return; // Ignore own signals
+    
+    let pc = peerConnections[userId];
+    if (!pc) {
+      pc = createPeerConnection(userId);
+    }
+
+    try {
+      switch (signal.type) {
+        case 'offer':
+          await pc.setRemoteDescription(signal.offer);
+          const answer = await pc.createAnswer();
+          await pc.setLocalDescription(answer);
+          sendWebRTCSignal({
+            type: 'answer',
+            answer: answer
+          }, userId);
+          break;
+          
+        case 'answer':
+          await pc.setRemoteDescription(signal.answer);
+          break;
+          
+        case 'ice-candidate':
+          await pc.addIceCandidate(signal.candidate);
+          break;
+      }
+    } catch (error) {
+      console.error('WebRTC signaling error:', error);
+    }
+  }, [user.id, peerConnections, createPeerConnection, sendWebRTCSignal]);
+
+  // Start video call with all users
+  const startVideoCall = useCallback(async () => {
+    if (!localStream) return;
+    
+    // Create offers for all other users
+    Object.keys(others).forEach(async (userId) => {
+      const pc = peerConnections[userId] || createPeerConnection(userId);
+      try {
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        sendWebRTCSignal({
+          type: 'offer',
+          offer: offer
+        }, userId);
+      } catch (error) {
+        console.error('Error creating offer:', error);
+      }
+    });
+  }, [localStream, others, peerConnections, createPeerConnection, sendWebRTCSignal]);
+
+  // Toggle video
+  const toggleVideo = useCallback(() => {
+    setVideoEnabled(prev => !prev);
+  }, []);
+
+  // Toggle audio
+  const toggleAudio = useCallback(() => {
+    setAudioEnabled(prev => !prev);
   }, []);
 
   // Activity tracking for timeout management
@@ -757,6 +996,10 @@ function App() {
       }
       return;
     }
+    if (data.type === "webrtc_signal") {
+      handleWebRTCSignal(data);
+      return;
+    }
     if (data.type === "session_end") {
       // Remote owner ended the session: reset local state
       cleanupHB();
@@ -767,9 +1010,17 @@ function App() {
       setLiveMode("none");
       setOthers({});
       setMessages([]);
+      // Clean up video chat
+      if (localStream) {
+        localStream.getTracks().forEach(track => track.stop());
+        setLocalStream(null);
+      }
+      Object.values(peerConnections).forEach(pc => pc.close());
+      setPeerConnections({});
+      setRemoteStreams({});
       return;
     }
-  }, [user.id]);
+  }, [user.id, handleWebRTCSignal, localStream, peerConnections]);
 
   // Connect live when we have shareCode and session
   useEffect(() => {
@@ -781,9 +1032,13 @@ function App() {
     lastEventIdRef.current = 0;
     if (session && shareCode) {
       startWS(shareCode);
+      // Start video call if enabled
+      if (videoEnabled || audioEnabled) {
+        setTimeout(startVideoCall, 1000); // Give time for others to connect
+      }
     }
     return () => { stopPolling(); stopWS(); };
-  }, [session, shareCode, startWS, stopPolling, stopWS]);
+  }, [session, shareCode, startWS, stopPolling, stopWS, videoEnabled, audioEnabled, startVideoCall]);
 
   // Outbound helpers (WS preferred, then POST)
   const postEvent = useCallback(async (code, payload) => {
@@ -894,6 +1149,14 @@ function App() {
       setShowTimeoutWarning(false);
       if (timeoutWarningRef.current) clearTimeout(timeoutWarningRef.current);
       if (disconnectTimeoutRef.current) clearTimeout(disconnectTimeoutRef.current);
+      // Clean up video chat
+      if (localStream) {
+        localStream.getTracks().forEach(track => track.stop());
+        setLocalStream(null);
+      }
+      Object.values(peerConnections).forEach(pc => pc.close());
+      setPeerConnections({});
+      setRemoteStreams({});
     }
   };
 
@@ -990,7 +1253,7 @@ function App() {
             <div className="ct-header-row">
               <div>
                 <div className="ct-title">Coffee Table</div>
-                <div className="ct-sub">Advanced virtual browser with multicursor & persistence</div>
+                <div className="ct-sub">Advanced virtual browser with video chat & collaboration</div>
               </div>
               <div className="ct-header-actions">
                 <button className="btn ghost" onClick={() => setShowSettings(!showSettings)}>
@@ -1036,6 +1299,18 @@ function App() {
                   <div className="ct-toggle">
                     <input id="multicursor" type="checkbox" checked={!!multicursorEnabled} onChange={(e) => setMulticursorEnabled(e.target.checked)} />
                     <label htmlFor="multicursor">🖱️ Multicursor (Multiple user cursors)</label>
+                  </div>
+                </div>
+
+                <div className="ct-settings-section">
+                  <h4>Video Chat</h4>
+                  <div className="ct-toggle">
+                    <input id="videoEnabled" type="checkbox" checked={!!videoEnabled} onChange={(e) => setVideoEnabled(e.target.checked)} />
+                    <label htmlFor="videoEnabled">📹 Enable Video Chat</label>
+                  </div>
+                  <div className="ct-toggle">
+                    <input id="audioEnabled" type="checkbox" checked={!!audioEnabled} onChange={(e) => setAudioEnabled(e.target.checked)} />
+                    <label htmlFor="audioEnabled">🎤 Enable Audio Chat</label>
                   </div>
                 </div>
 
@@ -1099,7 +1374,7 @@ function App() {
 
         </>
       ) : (
-        /* Session View - Advanced Hyperbeam Browser */
+        /* Session View - Advanced Hyperbeam Browser with Video Chat */
         <div className="ct-session-view" ref={containerRef}>
           <div className={`ct-browser-container ${isFullscreen ? 'ct-browser-fullscreen' : ''}`}>
             <div className="ct-browser">
@@ -1158,6 +1433,7 @@ function App() {
                 {persistenceEnabled && !mockMode && " • 🔄 Persistent"}
                 {multicursorEnabled && !mockMode && " • 🖱️ Multicursor"}
                 {extensions.filter(e => e.enabled).length > 0 && !mockMode && ` • 🧩 ${extensions.filter(e => e.enabled).length} Extensions`}
+                {(videoEnabled || audioEnabled) && " • 📹 Video Chat"}
               </div>
 
               {mockMode && <div className="ct-mock-label">MOCK</div>}
@@ -1165,12 +1441,35 @@ function App() {
             </div>
           </div>
 
-          {/* Chat heads overlay - only show if chat overlay is enabled or not in fullscreen */}
+          {/* Video Chat Heads - only show if chat overlay is enabled or not in fullscreen */}
           {(!isFullscreen || chatOverlay) && (
             <>
-              <DraggableChatHead id={user.id} initial={user.initial} color={user.color} onChange={(head) => sendPresence({ ...head })} />
+              <VideoChatHead 
+                id={user.id} 
+                initial={user.initial} 
+                color={user.color} 
+                onChange={(head) => sendPresence({ ...head })}
+                isMe={true}
+                onVideoToggle={toggleVideo}
+                onAudioToggle={toggleAudio}
+                videoEnabled={videoEnabled}
+                audioEnabled={audioEnabled}
+                stream={localStream}
+              />
               {Object.entries(others).map(([uid, cfg]) => (
-                <DraggableChatHead key={uid} id={uid} initial={cfg.initial} color={cfg.color} value={{ pos: cfg.pos, size: cfg.size }} onChange={() => {}} storageKey={`ct_chat_head_${uid}`} />
+                <VideoChatHead 
+                  key={uid} 
+                  id={uid} 
+                  initial={cfg.initial} 
+                  color={cfg.color} 
+                  value={{ pos: cfg.pos, size: cfg.size }} 
+                  onChange={() => {}} 
+                  storageKey={`ct_chat_head_${uid}`}
+                  isMe={false}
+                  videoEnabled={!!remoteStreams[uid]}
+                  audioEnabled={!!remoteStreams[uid]}
+                  stream={remoteStreams[uid]}
+                />
               ))}
             </>
           )}
@@ -1205,7 +1504,7 @@ function App() {
 
       {!session && (
         <footer className="ct-footer">
-          <span>Drag apps to arrange your desktop • Click apps to launch • Advanced features: Persistence, Multicursor, Extensions</span>
+          <span>Drag apps to arrange your desktop • Click apps to launch • Advanced features: Video Chat, Persistence, Multicursor, Extensions</span>
         </footer>
       )}
     </div>

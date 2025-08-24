@@ -66,7 +66,8 @@ body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI
 .ct-cursor-label { position: absolute; top: 20px; left: 0; background: #8b5cf6; color: white; font-size: 11px; padding: 2px 6px; border-radius: 4px; white-space: nowrap; font-weight: 600; }
 
 /* Desktop */
-.ct-desktop { position: fixed; inset: 0; z-index: 1; padding-top: 100px; }
+.ct-desktop { position: fixed; inset: 0; z-index: 1; padding-top: 100px; pointer-events: none; }
+.ct-desktop > * { pointer-events: auto; }
 
 /* Draggable Apps */
 .ct-app-icon { width: 100px; height: 100px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.22); display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: 0 10px 30px rgba(0,0,0,0.35); cursor: grab; transition: all 0.2s ease; padding: 8px; user-select: none; }
@@ -102,6 +103,39 @@ body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI
 
 .ct-session-info { position: absolute; bottom: 20px; left: 20px; background: rgba(16,185,129,0.12); border: 1px solid rgba(16,185,129,0.35); color: #bbf7d0; font-size: 11px; padding: 6px 10px; border-radius: 8px; font-weight: 600; z-index: 50; max-width: calc(100vw - 40px); }
 
+/* Video Chat Heads */
+.ct-video-chat-head { position: absolute; z-index: 50; border-radius: 50%; display: grid; place-items: center; box-shadow: 0 10px 25px rgba(0,0,0,0.35); border: 2px solid rgba(255,255,255,0.3); user-select: none; touch-action: none; overflow: hidden; }
+
+.ct-video-stream { border-radius: 50%; object-fit: cover; }
+
+.ct-video-controls { position: absolute; bottom: -8px; left: 50%; transform: translateX(-50%); display: flex; gap: 4px; opacity: 0; transition: opacity 0.2s ease; }
+.ct-video-chat-head:hover .ct-video-controls { opacity: 1; }
+
+.ct-video-btn { width: 24px; height: 24px; border-radius: 50%; border: none; cursor: pointer; font-size: 10px; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.8); color: white; transition: all 0.2s ease; }
+.ct-video-btn:hover { background: rgba(0,0,0,0.9); transform: scale(1.1); }
+.ct-video-btn.active { background: var(--primary); }
+
+.ct-muted-indicator { position: absolute; top: 4px; right: 4px; background: rgba(239,68,68,0.9); color: white; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; font-size: 10px; }
+
+.ct-video-active { border-color: var(--primary); box-shadow: 0 10px 25px rgba(0,0,0,0.35), 0 0 0 2px rgba(124, 58, 237, 0.5); }
+
+/* Chat head (legacy) */
+.ct-chat-head { position: absolute; z-index: 50; border-radius: 9999px; display: grid; place-items: center; box-shadow: 0 10px 25px rgba(0,0,0,0.35); border: 2px solid rgba(255,255,255,0.3); user-select: none; touch-action: none; }
+.ct-chat-initial { font-weight: 800; color: white; text-shadow: 0 2px 8px rgba(0,0,0,0.5); }
+.ct-resizer { position: absolute; right: -6px; bottom: -6px; width: 16px; height: 16px; border-radius: 4px; background: rgba(255,255,255,0.8); box-shadow: 0 2px 6px rgba(0,0,0,0.3); cursor: nwse-resize; }
+
+/* Chat panel */
+.ct-chat-panel { position: absolute; left: 12px; bottom: 12px; z-index: 55; display: flex; flex-direction: column; gap: 8px; }
+.ct-chat-panel-fullscreen { position: fixed; left: 20px; bottom: 20px; right: 20px; width: auto; max-width: 400px; }
+.ct-chat-window { width: min(360px, 90vw); background: rgba(2,6,23,0.9); border: 1px solid rgba(255,255,255,0.14); border-radius: 12px; overflow: hidden; backdrop-filter: blur(8px); }
+.ct-chat-messages { max-height: 200px; overflow: auto; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+.ct-chat-item { display: flex; gap: 8px; align-items: center; font-size: 14px; }
+.ct-chat-tag { width: 24px; height: 24px; border-radius: 9999px; display: inline-grid; place-items: center; color: white; font-size: 12px; flex-shrink: 0; }
+.ct-chat-text { color: #e5e7eb; }
+.ct-chat-empty { text-align: center; padding: 12px; color: var(--muted); font-size: 13px; }
+.ct-chat-input { display: flex; gap: 8px; border-top: 1px solid rgba(255,255,255,0.1); padding: 8px; }
+.ct-chat-input input { flex: 1; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.14); border-radius: 8px; height: 38px; color: #e5e7eb; padding: 0 12px; }
+
 /* Form elements */
 .ct-field { display: flex; flex-direction: column; margin-bottom: 12px; }
 .ct-field label { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
@@ -133,23 +167,6 @@ body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI
 
 .ct-mock-label { position: absolute; top: 10px; left: 10px; background: rgba(245, 158, 11, 0.18); border: 1px solid rgba(245,158,11,0.45); color: #fde68a; font-weight: 700; padding: 4px 8px; border-radius: 8px; letter-spacing: .6px; z-index: 60; }
 
-/* Chat head */
-.ct-chat-head { position: absolute; z-index: 50; border-radius: 9999px; display: grid; place-items: center; box-shadow: 0 10px 25px rgba(0,0,0,0.35); border: 2px solid rgba(255,255,255,0.3); user-select: none; touch-action: none; }
-.ct-chat-initial { font-weight: 800; color: white; text-shadow: 0 2px 8px rgba(0,0,0,0.5); }
-.ct-resizer { position: absolute; right: -6px; bottom: -6px; width: 16px; height: 16px; border-radius: 4px; background: rgba(255,255,255,0.8); box-shadow: 0 2px 6px rgba(0,0,0,0.3); cursor: nwse-resize; }
-
-/* Chat panel */
-.ct-chat-panel { position: absolute; left: 12px; bottom: 12px; z-index: 55; display: flex; flex-direction: column; gap: 8px; }
-.ct-chat-panel-fullscreen { position: fixed; left: 20px; bottom: 20px; right: 20px; width: auto; max-width: 400px; }
-.ct-chat-window { width: min(360px, 90vw); background: rgba(2,6,23,0.9); border: 1px solid rgba(255,255,255,0.14); border-radius: 12px; overflow: hidden; backdrop-filter: blur(8px); }
-.ct-chat-messages { max-height: 200px; overflow: auto; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
-.ct-chat-item { display: flex; gap: 8px; align-items: center; font-size: 14px; }
-.ct-chat-tag { width: 24px; height: 24px; border-radius: 9999px; display: inline-grid; place-items: center; color: white; font-size: 12px; flex-shrink: 0; }
-.ct-chat-text { color: #e5e7eb; }
-.ct-chat-empty { text-align: center; padding: 12px; color: var(--muted); font-size: 13px; }
-.ct-chat-input { display: flex; gap: 8px; border-top: 1px solid rgba(255,255,255,0.1); padding: 8px; }
-.ct-chat-input input { flex: 1; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.14); border-radius: 8px; height: 38px; color: #e5e7eb; padding: 0 12px; }
-
 .ct-footer { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); text-align: center; color: var(--muted); font-size: 12px; z-index: 2; white-space: nowrap; }
 
 /* Mobile responsiveness */
@@ -165,4 +182,6 @@ body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI
   .ct-timeout-content { margin: 10px; padding: 24px; }
   .ct-timeout-buttons { flex-direction: column; }
   .ct-session-info { font-size: 10px; padding: 4px 8px; }
+  .ct-video-controls { bottom: -6px; }
+  .ct-video-btn { width: 20px; height: 20px; font-size: 9px; }
 }
