@@ -270,14 +270,27 @@ def test_max_active_enforcement():
                     
                     # Clean up the first session for next test
                     print("   Cleaning up first session...")
-                    cleanup_payload = {"dry_run": False}
-                    requests.post(f"{BASE_URL}/hb/admin/cleanup", 
+                    cleanup_payload = {"dry_run": False, "idle_minutes": 0}
+                    cleanup_resp = requests.post(f"{BASE_URL}/hb/admin/cleanup", 
                                  json=cleanup_payload,
                                  headers=cleanup_headers, 
                                  timeout=10)
                     
+                    print(f"   Cleanup response: {cleanup_resp.status_code}")
+                    if cleanup_resp.status_code == 200:
+                        cleanup_data = cleanup_resp.json()
+                        print(f"   Cleanup result: {cleanup_data}")
+                    
                     # Wait for cleanup
-                    time.sleep(2)
+                    time.sleep(3)
+                    
+                    # Check active sessions after cleanup
+                    active_resp = requests.get(f"{BASE_URL}/hb/admin/active", 
+                                             headers=cleanup_headers, 
+                                             timeout=10)
+                    if active_resp.status_code == 200:
+                        active_data = active_resp.json()
+                        print(f"   Active sessions after cleanup: {len(active_data)}")
                     
                     # Try creating session again (should succeed now)
                     print("   Retrying session creation after cleanup...")
@@ -291,6 +304,7 @@ def test_max_active_enforcement():
                         return True
                     else:
                         print(f"   ❌ FAIL: Session creation failed after cleanup: {response3.status_code}")
+                        print(f"   Response: {response3.text}")
                         return False
                 else:
                     print(f"   ❌ FAIL: Incorrect error message: {detail}")
