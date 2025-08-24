@@ -102,21 +102,92 @@ const mockEmbedDataUrl = (title = "Coffee Table Mock Browser") => {
   return "data:text/html;base64," + btoa(unescape(encodeURIComponent(html)));
 };
 
-function LaunchIcon({ icon, onClick, className = "" }) {
+// App icon component with better icons than emojis
+function AppIcon({ app, onClick, className = "" }) {
   return (
-    <button className={`ct-launch ${className}`} style={{ background: icon.bg, color: icon.color }} onClick={onClick} title="Launch session" aria-label="Launch session">
-      <span className="ct-launch-emoji">{icon.emoji || "☕️"}</span>
+    <button 
+      className={`ct-app-icon ${className}`} 
+      style={{ background: app.bg }} 
+      onClick={() => onClick(app)} 
+      title={app.name}
+      aria-label={`Launch ${app.name}`}
+    >
+      <div className="ct-app-icon-content">
+        <div className="ct-app-icon-symbol" style={{ color: app.color }}>
+          {app.icon}
+        </div>
+        <div className="ct-app-icon-name">{app.name}</div>
+      </div>
     </button>
   );
 }
 
-const PRESETS = [
-  { label: "None (use Start URL)", url: "" },
-  { label: "YouTube", url: "https://www.youtube.com" },
-  { label: "Netflix", url: "https://www.netflix.com" },
-  { label: "Twitch", url: "https://www.twitch.tv" },
-  { label: "Spotify", url: "https://open.spotify.com" },
-  { label: "Disney+", url: "https://www.disneyplus.com" },
+// Bluey background images
+const BLUEY_BACKGROUNDS = [
+  { name: "Lounge", url: "https://www.bluey.tv/wp-content/uploads/2025/04/Lounge.png" },
+  { name: "Kitchen", url: "https://www.bluey.tv/wp-content/uploads/2025/04/Kitchen.png" },
+  { name: "Playroom", url: "https://www.bluey.tv/wp-content/uploads/2025/04/playroom.png" },
+  { name: "Kids Room", url: "https://www.bluey.tv/wp-content/uploads/2025/04/Kids.png" },
+  { name: "Dining", url: "https://www.bluey.tv/wp-content/uploads/2025/04/Dining.png" },
+  { name: "Central Room", url: "https://www.bluey.tv/wp-content/uploads/2025/04/Central-Room.png" },
+  { name: "Deck", url: "https://www.bluey.tv/wp-content/uploads/2025/04/Deck.png" },
+  { name: "Backyard", url: "https://www.bluey.tv/wp-content/uploads/2025/04/backyard.png" },
+  { name: "Bathroom", url: "https://www.bluey.tv/wp-content/uploads/2025/04/bathroom-1024x576.png" },
+  { name: "Shed", url: "https://www.bluey.tv/wp-content/uploads/2025/04/Shed.png" },
+];
+
+// Default apps and games
+const DEFAULT_APPS = [
+  { 
+    id: "youtube", 
+    name: "YouTube", 
+    url: "https://www.youtube.com", 
+    icon: "▶", 
+    color: "#ffffff", 
+    bg: "linear-gradient(135deg, #ff0000, #cc0000)" 
+  },
+  { 
+    id: "netflix", 
+    name: "Netflix", 
+    url: "https://www.netflix.com", 
+    icon: "N", 
+    color: "#ffffff", 
+    bg: "linear-gradient(135deg, #e50914, #b20710)" 
+  },
+  { 
+    id: "twitch", 
+    name: "Twitch", 
+    url: "https://www.twitch.tv", 
+    icon: "T", 
+    color: "#ffffff", 
+    bg: "linear-gradient(135deg, #9146ff, #6441a4)" 
+  },
+  { 
+    id: "spotify", 
+    name: "Spotify", 
+    url: "https://open.spotify.com", 
+    icon: "♪", 
+    color: "#ffffff", 
+    bg: "linear-gradient(135deg, #1db954, #168c41)" 
+  },
+  { 
+    id: "bluey-keepy-uppy", 
+    name: "Keepy Uppy", 
+    url: "https://embed.cbeebies.com/bluey-keepy-uppy/", 
+    icon: "⚽", 
+    color: "#ffffff", 
+    bg: "linear-gradient(135deg, #ff6b6b, #4ecdc4)",
+    isGame: true
+  },
+  { 
+    id: "bluey-xylophone", 
+    name: "Magic Xylophone", 
+    url: "https://embed.cbeebies.com/bluey-magic-xylophone/", 
+    icon: "🎵", 
+    color: "#ffffff", 
+    bg: "linear-gradient(135deg, #a8e6cf, #ff8b94)",
+    isGame: true
+  },
 ];
 
 function App() {
@@ -135,20 +206,19 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const [bgType, setBgType] = useLocalStorage("ct_bg_type", "gradient");
-  const [bgImage, setBgImage] = useLocalStorage("ct_bg_image", "");
+  // Set default background to Bluey Lounge
+  const [bgType, setBgType] = useLocalStorage("ct_bg_type", "image");
+  const [bgImage, setBgImage] = useLocalStorage("ct_bg_image", BLUEY_BACKGROUNDS[0].url);
   const [frameStyle, setFrameStyle] = useLocalStorage("ct_frame_style", "glass");
   const [loopVideo, setLoopVideo] = useLocalStorage("ct_loop_video", "");
   const [mockMode, setMockMode] = useLocalStorage("ct_mock_mode", false);
 
-  // Launch icon customization
-  const [launchIcon, setLaunchIcon] = useLocalStorage("ct_launch_icon", {
-    emoji: "☕️",
-    color: "#ffffff",
-    bg: "linear-gradient(135deg, #7c3aed, #06b6d4)",
-    preset: PRESETS[0],
-    floatMobile: true,
-  });
+  // User's custom bookmarks
+  const [customApps, setCustomApps] = useLocalStorage("ct_custom_apps", []);
+
+  // Fullscreen and chat overlay states
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [chatOverlay, setChatOverlay] = useLocalStorage("ct_chat_overlay", true);
 
   // Hyperbeam SDK state (real mode only)
   const hbMountRef = useRef(null);
@@ -180,6 +250,15 @@ function App() {
   useEffect(() => { if (apiKey) sessionStorage.setItem("hb_api_key", apiKey); }, [apiKey]);
 
   const headers = useMemo(() => ({ Authorization: `Bearer ${apiKey}` }), [apiKey]);
+
+  // Listen for fullscreen changes
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
 
   // Initialize Hyperbeam SDK when session active in real mode
   useEffect(() => {
@@ -341,7 +420,7 @@ function App() {
 
   const [chatText, setChatText] = useState("");
 
-  // New: base creator that accepts a URL override
+  // Launch app/game
   const createSessionWithUrl = async (url) => {
     setLoading(true);
     setError("");
@@ -365,7 +444,7 @@ function App() {
   };
 
   const terminateSession = async () => {
-    if (!session) return; if (!window.confirm("Terminate this session?")) return;
+    if (!session) return; if (!window.confirm("Close this session?")) return;
     setLoading(true); setError("");
     try {
       if (mockMode) {
@@ -402,19 +481,55 @@ function App() {
     finally { setLoading(false); }
   };
 
-  const enterFullscreen = () => { const el = containerRef.current; if (!el) return; if (document.fullscreenElement) { document.exitFullscreen?.(); } else { el.requestFullscreen?.(); } };
+  // Enhanced fullscreen with chat overlay options
+  const enterFullscreen = () => { 
+    const el = containerRef.current; 
+    if (!el) return; 
+    if (document.fullscreenElement) { 
+      document.exitFullscreen?.(); 
+    } else { 
+      el.requestFullscreen?.(); 
+    } 
+  };
 
   const bgStyle = useMemo(() => (bgType === "image" && bgImage ? { backgroundImage: `url(${bgImage})`, backgroundSize: "cover", backgroundPosition: "center" } : {}), [bgType, bgImage]);
 
-  // Launch handler: uses preset URL if provided
-  const handleLaunchClick = () => {
-    const effectiveUrl = launchIcon?.preset?.url || startUrl;
+  // Handle app launch
+  const handleAppLaunch = (app) => {
     if (!mockMode && !apiKey) {
       alert("Enter your Hyperbeam API key or enable Mock Mode to launch");
       return;
     }
-    createSessionWithUrl(effectiveUrl);
+    createSessionWithUrl(app.url);
   };
+
+  // Add custom app
+  const addCustomApp = () => {
+    const name = prompt("App name:");
+    if (!name) return;
+    const url = prompt("App URL:");
+    if (!url) return;
+    const icon = prompt("Icon (single character):", "🌐");
+    const app = {
+      id: `custom-${Date.now()}`,
+      name,
+      url,
+      icon: icon || "🌐",
+      color: "#ffffff",
+      bg: "linear-gradient(135deg, #667eea, #764ba2)",
+      isCustom: true
+    };
+    setCustomApps(prev => [...prev, app]);
+  };
+
+  // Remove custom app
+  const removeCustomApp = (appId) => {
+    if (window.confirm("Remove this app?")) {
+      setCustomApps(prev => prev.filter(app => app.id !== appId));
+    }
+  };
+
+  const allApps = [...DEFAULT_APPS, ...customApps];
 
   return (
     <div className="ct-root" style={bgStyle}>
@@ -430,239 +545,248 @@ function App() {
             <div className="ct-sub">Shared virtual browser powered by Hyperbeam</div>
           </div>
           <div className="ct-header-actions">
-            <LaunchIcon icon={launchIcon} onClick={handleLaunchClick} />
+            {session && (
+              <button className="btn danger" onClick={terminateSession} disabled={loading}>
+                {loading ? "Closing..." : "Close Session"}
+              </button>
+            )}
           </div>
         </div>
       </header>
 
-      {/* Floating dock button for mobile */}
-      {launchIcon.floatMobile && (
-        <div className="ct-dock">
-          <LaunchIcon icon={launchIcon} onClick={handleLaunchClick} className="ct-dock-btn" />
-        </div>
-      )}
-
       <main className="ct-main">
-        <section className="ct-panel">
-          <form onSubmit={createSession} className="ct-form">
-            <div className="ct-field">
-              <label>Hyperbeam API Key</label>
-              <input type="password" value={mockMode ? "" : apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder={mockMode ? "Disabled in Mock Mode" : "sk_..."} autoComplete="off" disabled={mockMode} />
-            </div>
-
-            <div className="ct-field">
-              <label className="ct-label-row">Start URL <span className="ct-badge">Optional</span></label>
-              <input type="url" value={startUrl} onChange={(e) => setStartUrl(e.target.value)} placeholder="https://www.google.com" />
-            </div>
-
-            <div className="ct-row">
-              <div className="ct-field">
-                <label>Width</label>
-                <select value={size.width} onChange={(e) => setSize((s) => ({ ...s, width: e.target.value }))}>
-                  <option value={1280}>1280</option>
-                  <option value={1920}>1920</option>
-                  <option value={1024}>1024</option>
-                  <option value={800}>800</option>
-                </select>
-              </div>
-              <div className="ct-field">
-                <label>Height</label>
-                <select value={size.height} onChange={(e) => setSize((s) => ({ ...s, height: e.target.value }))}>
-                  <option value={720}>720</option>
-                  <option value={1080}>1080</option>
-                  <option value={600}>600</option>
-                  <option value={480}>480</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="ct-row ct-split">
-              <div className="ct-toggle">
-                <input id="mockMode" type="checkbox" checked={!!mockMode} onChange={(e) => setMockMode(e.target.checked)} />
-                <label htmlFor="mockMode">Mock Mode</label>
-              </div>
-              <div className="ct-actions">
-                {!session ? (
-                  <button className="btn primary" type="submit" disabled={loading}>{loading ? "Creating..." : "Create Session"}</button>
-                ) : (
-                  <>
-                    <button className="btn danger" type="button" onClick={terminateSession} disabled={loading}>{loading ? "Terminating..." : "Terminate"}</button>
-                    <button className="btn ghost" type="button" onClick={createShareCode} disabled={loading || !!shareCode}>{shareCode ? `Code: ${shareCode}` : "Create Share Code"}</button>
-                  </>
-                )}
-              </div>
-            </div>
-
-            <div className="ct-row" style={{ marginTop: 10 }}>
-              <div className="ct-field grow">
-                <label>Join by Code</label>
-                <div className="ct-join">
-                  <input value={joinCode} onChange={(e) => setJoinCode(e.target.value.toUpperCase())} placeholder="ABC123" />
-                  <button className="btn primary" onClick={joinByCode} type="button" disabled={loading || !joinCode}>Join</button>
-                </div>
-              </div>
-            </div>
-
-            {error ? <div className="ct-alert error">{String(error)}</div> : null}
-            {session ? (
-              <div className="ct-alert success">Session Active • {session.session_uuid} {shareCode ? `• Code ${shareCode}` : ""} {liveMode === 'ws' ? '• Live WS' : liveMode === 'poll' ? '• Live Poll' : ''}</div>
-            ) : null}
-          </form>
-
-          <div className="ct-customize">
-            <div className="ct-custom-title">Customize</div>
-            <div className="ct-row">
-              <div className="ct-field">
-                <label>Background</label>
-                <select value={bgType} onChange={(e) => setBgType(e.target.value)}>
-                  <option value="gradient">Gradient</option>
-                  <option value="image">Image URL</option>
-                </select>
-              </div>
-              {bgType === "image" && (
-                <div className="ct-field grow">
-                  <label>Image URL</label>
-                  <input value={bgImage} onChange={(e) => setBgImage(e.target.value)} placeholder="https://..." />
-                </div>
-              )}
-            </div>
-            <div className="ct-row">
-              <div className="ct-field">
-                <label>Frame Style</label>
-                <select value={frameStyle} onChange={(e) => setFrameStyle(e.target.value)}>
-                  <option value="glass">Glass</option>
-                  <option value="shadow">Shadow</option>
-                  <option value="plain">Plain</option>
-                </select>
-              </div>
-              <div className="ct-field grow">
-                <label>Browser Volume</label>
-                <input type="range" min="0" max="1" step="0.01" value={browserVolume} onChange={(e) => setBrowserVolume(parseFloat(e.target.value))} disabled={mockMode || hbFallbackIframe} />
-                <div className="ct-tiny">{Math.round(browserVolume * 100)}% {mockMode ? "(mock)" : hbFallbackIframe ? "(iframe fallback)" : ""}</div>
-              </div>
-            </div>
-            <div className="ct-row">
-              <div className="ct-field grow">
-                <label>Chat Volume</label>
-                <input type="range" min="0" max="1" step="0.01" value={chatVolume} onChange={(e) => setChatVolume(parseFloat(e.target.value))} />
-                <div className="ct-tiny">{Math.round(chatVolume * 100)}% <button className="btn ghost" style={{height:30}} onClick={() => { chatAudioRef.current?.play(); }}>Test</button></div>
-              </div>
-            </div>
-
-            <div className="ct-divider" />
-            <div className="ct-custom-title">Launch Icon</div>
-            <div className="ct-icon-builder">
-              <div className="ct-launch-preview">
-                <LaunchIcon icon={launchIcon} onClick={handleLaunchClick} />
-              </div>
-              <div className="ct-row">
+        {!session ? (
+          <>
+            <section className="ct-panel">
+              <form onSubmit={createSession} className="ct-form">
                 <div className="ct-field">
-                  <label>Emoji</label>
-                  <input value={launchIcon.emoji} onChange={(e) => setLaunchIcon({ ...launchIcon, emoji: e.target.value.slice(0, 3) })} placeholder="☕️" />
+                  <label>Hyperbeam API Key</label>
+                  <input type="password" value={mockMode ? "" : apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder={mockMode ? "Disabled in Mock Mode" : "sk_..."} autoComplete="off" disabled={mockMode} />
                 </div>
+
                 <div className="ct-field">
-                  <label>Text Color</label>
-                  <input type="color" value={launchIcon.color} onChange={(e) => setLaunchIcon({ ...launchIcon, color: e.target.value })} />
+                  <label className="ct-label-row">Start URL <span className="ct-badge">Optional</span></label>
+                  <input type="url" value={startUrl} onChange={(e) => setStartUrl(e.target.value)} placeholder="https://www.google.com" />
                 </div>
-              </div>
-              <div className="ct-field">
-                <label>Background Style</label>
-                <select value={launchIcon.bg} onChange={(e) => setLaunchIcon({ ...launchIcon, bg: e.target.value })}>
-                  <option value="linear-gradient(135deg, #7c3aed, #06b6d4)">Purple → Teal</option>
-                  <option value="linear-gradient(135deg, #ef4444, #f59e0b)">Red → Amber</option>
-                  <option value="linear-gradient(135deg, #22c55e, #06b6d4)">Green → Teal</option>
-                  <option value="linear-gradient(135deg, #0ea5e9, #9333ea)">Sky → Violet</option>
-                  <option value="#111827">Solid • Slate</option>
-                </select>
-              </div>
-              <div className="ct-row">
-                <div className="ct-field grow">
-                  <label>Preset</label>
-                  <select
-                    value={launchIcon?.preset?.label || PRESETS[0].label}
-                    onChange={(e) => {
-                      const p = PRESETS.find(x => x.label === e.target.value) || PRESETS[0];
-                      setLaunchIcon({ ...launchIcon, preset: p });
-                    }}
-                  >
-                    {PRESETS.map(p => <option key={p.label} value={p.label}>{p.label}</option>)}
-                  </select>
+
+                <div className="ct-row">
+                  <div className="ct-field">
+                    <label>Width</label>
+                    <select value={size.width} onChange={(e) => setSize((s) => ({ ...s, width: e.target.value }))}>
+                      <option value={1280}>1280</option>
+                      <option value={1920}>1920</option>
+                      <option value={1024}>1024</option>
+                      <option value={800}>800</option>
+                    </select>
+                  </div>
+                  <div className="ct-field">
+                    <label>Height</label>
+                    <select value={size.height} onChange={(e) => setSize((s) => ({ ...s, height: e.target.value }))}>
+                      <option value={720}>720</option>
+                      <option value={1080}>1080</option>
+                      <option value={600}>600</option>
+                      <option value={480}>480</option>
+                    </select>
+                  </div>
                 </div>
-                <div className="ct-field">
-                  <label>Float on Mobile</label>
+
+                <div className="ct-row ct-split">
                   <div className="ct-toggle">
-                    <input id="floatMobile" type="checkbox" checked={!!launchIcon.floatMobile} onChange={(e) => setLaunchIcon({ ...launchIcon, floatMobile: e.target.checked })} />
-                    <label htmlFor="floatMobile">Enabled</label>
+                    <input id="mockMode" type="checkbox" checked={!!mockMode} onChange={(e) => setMockMode(e.target.checked)} />
+                    <label htmlFor="mockMode">Mock Mode</label>
+                  </div>
+                  <div className="ct-actions">
+                    <button className="btn primary" type="submit" disabled={loading}>{loading ? "Creating..." : "Create Session"}</button>
+                  </div>
+                </div>
+
+                <div className="ct-row" style={{ marginTop: 10 }}>
+                  <div className="ct-field grow">
+                    <label>Join by Code</label>
+                    <div className="ct-join">
+                      <input value={joinCode} onChange={(e) => setJoinCode(e.target.value.toUpperCase())} placeholder="ABC123" />
+                      <button className="btn primary" onClick={joinByCode} type="button" disabled={loading || !joinCode}>Join</button>
+                    </div>
+                  </div>
+                </div>
+
+                {error ? <div className="ct-alert error">{String(error)}</div> : null}
+              </form>
+
+              <div className="ct-customize">
+                <div className="ct-custom-title">Quick Backgrounds</div>
+                <div className="ct-bg-grid">
+                  {BLUEY_BACKGROUNDS.map(bg => (
+                    <button
+                      key={bg.name}
+                      className={`ct-bg-thumb ${bgImage === bg.url ? 'active' : ''}`}
+                      style={{ backgroundImage: `url(${bg.url})` }}
+                      onClick={() => { setBgType("image"); setBgImage(bg.url); }}
+                      title={bg.name}
+                    >
+                      <span className="ct-bg-name">{bg.name}</span>
+                    </button>
+                  ))}
+                </div>
+
+                <div className="ct-divider" />
+                <div className="ct-custom-title">Customize</div>
+                <div className="ct-row">
+                  <div className="ct-field">
+                    <label>Background</label>
+                    <select value={bgType} onChange={(e) => setBgType(e.target.value)}>
+                      <option value="gradient">Gradient</option>
+                      <option value="image">Image URL</option>
+                    </select>
+                  </div>
+                  {bgType === "image" && (
+                    <div className="ct-field grow">
+                      <label>Image URL</label>
+                      <input value={bgImage} onChange={(e) => setBgImage(e.target.value)} placeholder="https://..." />
+                    </div>
+                  )}
+                </div>
+                <div className="ct-row">
+                  <div className="ct-field">
+                    <label>Frame Style</label>
+                    <select value={frameStyle} onChange={(e) => setFrameStyle(e.target.value)}>
+                      <option value="glass">Glass</option>
+                      <option value="shadow">Shadow</option>
+                      <option value="plain">Plain</option>
+                    </select>
+                  </div>
+                  <div className="ct-field grow">
+                    <label>Browser Volume</label>
+                    <input type="range" min="0" max="1" step="0.01" value={browserVolume} onChange={(e) => setBrowserVolume(parseFloat(e.target.value))} disabled={mockMode || hbFallbackIframe} />
+                    <div className="ct-tiny">{Math.round(browserVolume * 100)}% {mockMode ? "(mock)" : hbFallbackIframe ? "(iframe fallback)" : ""}</div>
+                  </div>
+                </div>
+                <div className="ct-row">
+                  <div className="ct-field grow">
+                    <label>Chat Volume</label>
+                    <input type="range" min="0" max="1" step="0.01" value={chatVolume} onChange={(e) => setChatVolume(parseFloat(e.target.value))} />
+                    <div className="ct-tiny">{Math.round(chatVolume * 100)}% <button className="btn ghost" style={{height:30}} onClick={() => { chatAudioRef.current?.play(); }}>Test</button></div>
                   </div>
                 </div>
               </div>
-              <div className="ct-tiny">Tip: The Launch icon uses your selected preset URL if set; otherwise it uses the Start URL field.</div>
-            </div>
-          </div>
-        </section>
+            </section>
 
-        <section className="ct-stage" ref={containerRef}>
-          <div className={`ct-frame ${frameStyle}`}>
-            {!session ? (
-              <div className="ct-empty">
-                <div>Start a session or join with a code to launch the shared browser</div>
+            <section className="ct-stage">
+              <div className="ct-apps-section">
+                <div className="ct-section-title">
+                  <span>Apps & Games</span>
+                  <button className="btn ghost ct-add-app" onClick={addCustomApp}>+ Add Custom</button>
+                </div>
+                <div className="ct-apps-grid">
+                  {allApps.map(app => (
+                    <div key={app.id} className="ct-app-wrapper">
+                      <AppIcon app={app} onClick={handleAppLaunch} />
+                      {app.isCustom && (
+                        <button 
+                          className="ct-remove-app" 
+                          onClick={() => removeCustomApp(app.id)}
+                          title="Remove app"
+                        >
+                          ×
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
-            ) : (
+            </section>
+          </>
+        ) : (
+          <section className="ct-stage ct-fullscreen-stage" ref={containerRef}>
+            <div className={`ct-frame ${frameStyle} ${isFullscreen ? 'ct-fullscreen-frame' : ''}`}>
               <div className="ct-browser">
                 {mockMode ? (
                   <iframe title="Coffee Table" src={session.embed_url} allow="clipboard-read; clipboard-write; autoplay; microphone; camera;" allowFullScreen />
                 ) : hbFallbackIframe ? (
                   <iframe title="Coffee Table" src={session.embed_url} allow="clipboard-read; clipboard-write; autoplay; microphone; camera;" allowFullScreen />
                 ) : (
-                  <div ref={hbMountRef} style={{ width: "100%", height: "min(70vh, 760px)", borderRadius: 16, overflow: "hidden", background: "#0b1020" }} />
+                  <div ref={hbMountRef} style={{ width: "100%", height: isFullscreen ? "100vh" : "min(70vh, 760px)", borderRadius: isFullscreen ? 0 : 16, overflow: "hidden", background: "#0b1020" }} />
                 )}
 
-                <div className="ct-overlay">
-                  <button className="btn ghost" onClick={enterFullscreen}>Fullscreen</button>
-                  <a className="btn ghost" href={session.embed_url} target="_blank" rel="noreferrer">Open Tab</a>
-                </div>
+                {!isFullscreen && (
+                  <div className="ct-overlay">
+                    <button className="btn ghost" onClick={enterFullscreen}>Fullscreen</button>
+                    <button className="btn ghost" onClick={createShareCode} disabled={loading || !!shareCode}>
+                      {shareCode ? `Code: ${shareCode}` : "Share"}
+                    </button>
+                  </div>
+                )}
+
+                {isFullscreen && (
+                  <div className="ct-fullscreen-controls">
+                    <button className="btn ghost" onClick={enterFullscreen}>Exit Fullscreen</button>
+                    <button 
+                      className="btn ghost" 
+                      onClick={() => setChatOverlay(!chatOverlay)}
+                    >
+                      {chatOverlay ? "Hide Chat" : "Show Chat"}
+                    </button>
+                    <button className="btn ghost" onClick={createShareCode} disabled={loading || !!shareCode}>
+                      {shareCode ? `Code: ${shareCode}` : "Share"}
+                    </button>
+                  </div>
+                )}
+
+                {session && (
+                  <div className="ct-session-info">
+                    Session Active • {session.session_uuid} {shareCode ? `• Code ${shareCode}` : ""} {liveMode === 'ws' ? '• Live WS' : liveMode === 'poll' ? '• Live Poll' : ''}
+                  </div>
+                )}
 
                 {mockMode && <div className="ct-mock-label">MOCK</div>}
                 {(!mockMode && hbFallbackIframe) && <div className="ct-mock-label" style={{background:"rgba(239,68,68,0.2)",borderColor:"rgba(239,68,68,0.5)",color:"#fecaca"}}>SDK Fallback</div>}
               </div>
-            )}
-          </div>
-
-          {/* Chat heads overlay */}
-          <DraggableChatHead id={user.id} initial={user.initial} color={user.color} onChange={(head) => sendPresence({ ...head })} />
-          {Object.entries(others).map(([uid, cfg]) => (
-            <DraggableChatHead key={uid} id={uid} initial={cfg.initial} color={cfg.color} value={{ pos: cfg.pos, size: cfg.size }} onChange={() => {}} storageKey={`ct_chat_head_${uid}`} />
-          ))}
-
-          {/* Chat panel */}
-          {session && (
-            <div className="ct-chat-panel">
-              <button className="btn ghost" onClick={() => setChatOpen((v) => !v)}>{chatOpen ? "Close Chat" : "Open Chat"}{liveMode !== 'none' ? (liveMode === 'ws' ? ' • Live WS' : ' • Live Poll') : ''}</button>
-              {chatOpen && (
-                <div className="ct-chat-window">
-                  <div className="ct-chat-messages">
-                    {messages.map((m, i) => (
-                      <div key={i} className="ct-chat-item">
-                        <span className="ct-chat-tag" style={{background: m.user?.color || '#334155'}}>{m.user?.initial || '👤'}</span>
-                        <span className="ct-chat-text">{m.text}</span>
-                      </div>
-                    ))}
-                    {messages.length === 0 && <div className="ct-chat-empty">No messages yet</div>}
-                  </div>
-                  <div className="ct-chat-input">
-                    <input value={chatText} onChange={(e) => setChatText(e.target.value)} placeholder="Type a message" onKeyDown={(e) => { if (e.key === 'Enter') { sendChat(chatText); setChatText(''); } }} />
-                    <button className="btn primary" onClick={() => { sendChat(chatText); setChatText(''); }}>Send</button>
-                  </div>
-                </div>
-              )}
             </div>
-          )}
-        </section>
+
+            {/* Chat heads overlay - only show if chat overlay is enabled or not in fullscreen */}
+            {(!isFullscreen || chatOverlay) && (
+              <>
+                <DraggableChatHead id={user.id} initial={user.initial} color={user.color} onChange={(head) => sendPresence({ ...head })} />
+                {Object.entries(others).map(([uid, cfg]) => (
+                  <DraggableChatHead key={uid} id={uid} initial={cfg.initial} color={cfg.color} value={{ pos: cfg.pos, size: cfg.size }} onChange={() => {}} storageKey={`ct_chat_head_${uid}`} />
+                ))}
+              </>
+            )}
+
+            {/* Fixed chat panel - always at bottom in fullscreen */}
+            {(!isFullscreen || chatOverlay) && (
+              <div className={`ct-chat-panel ${isFullscreen ? 'ct-chat-panel-fullscreen' : ''}`}>
+                <button className="btn ghost" onClick={() => setChatOpen((v) => !v)}>
+                  {chatOpen ? "Close Chat" : "Open Chat"}{liveMode !== 'none' ? (liveMode === 'ws' ? ' • Live WS' : ' • Live Poll') : ''}
+                </button>
+                {chatOpen && (
+                  <div className="ct-chat-window">
+                    <div className="ct-chat-messages">
+                      {messages.map((m, i) => (
+                        <div key={i} className="ct-chat-item">
+                          <span className="ct-chat-tag" style={{background: m.user?.color || '#334155'}}>{m.user?.initial || '👤'}</span>
+                          <span className="ct-chat-text">{m.text}</span>
+                        </div>
+                      ))}
+                      {messages.length === 0 && <div className="ct-chat-empty">No messages yet</div>}
+                    </div>
+                    <div className="ct-chat-input">
+                      <input value={chatText} onChange={(e) => setChatText(e.target.value)} placeholder="Type a message" onKeyDown={(e) => { if (e.key === 'Enter') { sendChat(chatText); setChatText(''); } }} />
+                      <button className="btn primary" onClick={() => { sendChat(chatText); setChatText(''); }}>Send</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </section>
+        )}
       </main>
 
-      <footer className="ct-footer">
-        <span>Tip: {mockMode ? "Mock Mode: no Hyperbeam required" : "Paste your Hyperbeam API key above and press Create Session"} • Share your code so friends can join</span>
-      </footer>
+      {!session && (
+        <footer className="ct-footer">
+          <span>Choose an app to get started, or paste your Hyperbeam API key and create a custom session</span>
+        </footer>
+      )}
     </div>
   );
 }
