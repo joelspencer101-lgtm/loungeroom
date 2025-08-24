@@ -107,11 +107,11 @@
 ## backend:
   - task: "HB proxy endpoints (/api/hb)"
     implemented: true
-    working: true
+    working: false
     file: "/app/backend/server.py"
-    stuck_count: 0
+    stuck_count: 1
     priority: "high"
-    needs_retesting: false
+    needs_retesting: true
     status_history:
       -working: true
       -agent: "main"
@@ -119,6 +119,9 @@
       -working: true
       -agent: "testing"
       -comment: "All 7 backend API tests passed successfully. Health check returns correct format, session creation/retrieval/termination work properly with real Hyperbeam API, proper 410 response for terminated sessions, and correct 422 error handling for missing authorization. Backend is fully functional."
+      -working: false
+      -agent: "user"
+      -comment: "User reports inability to launch Hyperbeam sessions with provided test API key sk_test_JdZwpNJgNmT9146OlIhx8CZzerrk4PhofqwZv6Bxlkc. Says 'its a test api that can run 2 sessions with no time limit' but integration is not functional."
   - task: "HB rooms endpoints (/api/hb/rooms)"
     implemented: true
     working: "NA"
