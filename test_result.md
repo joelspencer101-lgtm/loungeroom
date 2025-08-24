@@ -388,12 +388,8 @@
 
 ## test_plan:
   current_focus:
-    - "Advanced Hyperbeam Persistence Feature"
-    - "Advanced Hyperbeam Multicursor Feature"
-    - "Chrome Extensions Manager"
-    - "Dynamic Resize Feature"
-    - "Smart Timeout Management"
-    - "Existing Features Regression Test"
+    - "Admin Session Janitor (list/cleanup/terminate)"
+    - "MAX_ACTIVE enforcement for Test API plan"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
