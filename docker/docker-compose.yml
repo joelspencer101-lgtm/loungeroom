@@ -1,0 +1,13 @@
+version: "3.8"
+services:
+  coffee-nginx:
+    image: nginx:1.25-alpine
+    # If Apple Silicon throws an arch warning, uncomment the next line
+    # platform: linux/arm64/v8
+    ports:
+      - "8080:80"    # optional: HTTP redirect to HTTPS
+      - "8443:443"   # HTTPS
+    volumes:
+      - ./nginx/conf.d/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx/certs:/etc/nginx/certs:ro
+    restart: unless-stopped
