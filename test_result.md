@@ -255,13 +255,13 @@
 
 ## test_plan:
   current_focus:
-    - "Frontend investigation - user cannot launch sessions despite backend working perfectly"
-    - "UI flow debugging - session creation process on frontend"
-    - "Browser compatibility and iframe loading issues"
+    - "Frontend testing with working API key sk_test_JdZwpNJgNmT9146OlIhx8CZzerrk4PhofqwZv6Bxlkc to identify UI flow issues"
+    - "Debug frontend session creation, embedding, and display process"
+    - "Fix identified frontend issues preventing Hyperbeam session launch"
   stuck_tasks:
-    - "MVP UI: API key, create/terminate, embed iframe, customization - user reports non-functional despite backend working"
+    - "MVP UI: API key, create/terminate, embed iframe, customization - needs frontend debugging"
   test_all: false
-  test_priority: "frontend_investigation"
+  test_priority: "stuck_first"
 
 ## agent_communication:
   -agent: "main"
