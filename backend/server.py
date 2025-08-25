@@ -9,7 +9,7 @@ from pathlib import Path
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any, Set
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import requests
 import random
 import string
@@ -95,12 +95,39 @@ async def _validate_api_key(authorization: str = Header(...)) -> str:
         raise HTTPException(status_code=401, detail="Invalid authorization header. Use 'Bearer <api_key>'")
     return authorization.split("Bearer ", 1)[1]
 
+# Admin token dependency
+def _get_admin_token():
+    token = os.environ.get("ADMIN_TOKEN", "")
+    if not token:
+        logging.warning("ADMIN_TOKEN is not set in environment")
+    return token
+
+async def _require_admin(x_admin_token: str = Header(default="", alias="X-Admin-Token")):
+    expected = _get_admin_token()
+    if not expected or x_admin_token != expected:
+        raise HTTPException(status_code=401, detail="Unauthorized: invalid admin token")
+    return True
+
+# Convenience env getters
+def _get_env_hb_key() -> str:
+    key = os.environ.get("HYPERBEAM_API_KEY", "")
+    return key
+
+MAX_ACTIVE = int(os.environ.get("MAX_ACTIVE_SESSIONS", "0") or 0)
+DEFAULT_IDLE_MIN = int(os.environ.get("JANITOR_IDLE_MINUTES", "60") or 60)
+
 @hb_router.get("/health")
 async def hb_health():
     return {"status": "healthy", "service": "hyperbeam-proxy", "timestamp": now_iso()}
 
 @hb_router.post("/sessions", response_model=HBSessionResponse)
 async def hb_create_session(payload: HBCreatePayload, api_key: str = Depends(_validate_api_key)):
+    # Optional enforcement to respect test plan limits
+    if MAX_ACTIVE and MAX_ACTIVE > 0:
+        active_count = await db.hb_sessions.count_documents({"is_active": True})
+        if active_count >= MAX_ACTIVE:
+            raise HTTPException(status_code=429, detail=f"Max active sessions reached ({MAX_ACTIVE}). Use admin cleanup to free capacity.")
+
     body = {
         "start_url": payload.start_url or "https://www.google.com",
         "width": payload.width or 1280,
@@ -323,31 +350,28 @@ async def ws_room(websocket: WebSocket, code: str):
         while True:
             msg = await websocket.receive_text()
             try:
-                payload = json.loads(msg)
+                data = json.loads(msg)
             except Exception:
+                data = {"type": "unknown"}
+
+            # basic validation
+            if not isinstance(data, dict):
                 continue
-            mtype = payload.get("type")
-            if mtype == "ping":
-                await websocket.send_text(json.dumps({"type": "pong", "ts": now_iso()}))
-                continue
-            if mtype in ("chat", "presence"):
-                # attach user
-                payload["user"] = manager.ident.get(websocket, {})
-                payload.setdefault("ts", now_iso())
-                await manager.broadcast(code, payload)
+
+            # Broadcast to others in the same room
+            await manager.broadcast(code, data)
     except WebSocketDisconnect:
         pass
     except Exception:
-        logging.exception("WebSocket error")
+        logging.exception("ws_room error")
     finally:
-        user = manager.ident.get(websocket)
-        manager.disconnect(code, websocket)
-        if user:
+        try:
             # announce leave
-            try:
-                await manager.broadcast(code, {"type": "presence", "event": "leave", "user": user, "ts": now_iso()})
-            except Exception:
-                pass
+            user = manager.ident.get(websocket, {})
+            await manager.broadcast(code, {"type": "presence", "event": "leave", "user": user, "ts": now_iso()})
+        except Exception:
+            pass
+        manager.disconnect(code, websocket)
 
 # -------------------------------------------------------------------------------------
 # HTTP Polling fallback for realtime events (chat + presence)
@@ -398,6 +422,133 @@ async def get_room_events(code: str, since: int = Query(0, ge=0)):
     last_id = lst[-1]["id"] if lst else since
     return {"events": out, "last_id": last_id}
 
+# -------------------------------------------------------------------------------------
+# Admin: Session Janitor (list/cleanup/terminate) - uses env API key and ADMIN token
+# -------------------------------------------------------------------------------------
+class AdminCleanupIn(BaseModel):
+    idle_minutes: Optional[int] = None
+    max_active: Optional[int] = None
+    dry_run: Optional[bool] = False
+
+class AdminSessionOut(BaseModel):
+    session_uuid: str
+    hyperbeam_session_id: Optional[str] = None
+    embed_url: Optional[str] = None
+    is_active: bool
+    created_at: str
+    last_accessed: Optional[str] = None
+    age_minutes: float
+
+async def _list_active_sessions() -> List[Dict[str, Any]]:
+    items = await db.hb_sessions.find({"is_active": True}).sort("created_at", 1).to_list(length=None)
+    return items
+
+async def _terminate_session_record(doc: Dict[str, Any], reason: str = "admin_cleanup") -> Dict[str, Any]:
+    hb_id = doc.get("hyperbeam_session_id")
+    api_key = _get_env_hb_key()
+
+    def _delete():
+        # If we have an API key and hb_id, attempt remote termination; otherwise skip remote call
+        if api_key and hb_id:
+            return requests.delete(
+                f"{HYPERBEAM_BASE}/vm/{hb_id}",
+                headers={"Authorization": f"Bearer {api_key}"},
+                timeout=30,
+            )
+        class Dummy:
+            status_code = 204
+        return Dummy()
+
+    try:
+        resp = await run_in_threadpool(_delete)
+    except Exception:
+        logging.exception("Admin terminate remote call failed")
+        # Proceed to mark inactive locally regardless
+        resp = type("Dummy", (), {"status_code": 500})()
+
+    await db.hb_sessions.update_one(
+        {"session_uuid": doc["session_uuid"]},
+        {"$set": {"is_active": False, "last_accessed": now_iso(), "terminated_by": reason}},
+    )
+
+    return {"session_uuid": doc["session_uuid"], "remote_status": getattr(resp, "status_code", None)}
+
+@hb_router.get("/admin/active", response_model=List[AdminSessionOut], dependencies=[Depends(_require_admin)])
+async def admin_list_active():
+    items = await _list_active_sessions()
+    out: List[AdminSessionOut] = []
+    now = datetime.now(timezone.utc)
+    for it in items:
+        created = datetime.fromisoformat(it["created_at"]) if isinstance(it.get("created_at"), str) else now
+        age = (now - created).total_seconds() / 60.0
+        out.append(AdminSessionOut(
+            session_uuid=it["session_uuid"],
+            hyperbeam_session_id=it.get("hyperbeam_session_id"),
+            embed_url=it.get("embed_url"),
+            is_active=it.get("is_active", False),
+            created_at=it.get("created_at"),
+            last_accessed=it.get("last_accessed"),
+            age_minutes=age,
+        ))
+    return out
+
+@hb_router.post("/admin/cleanup", dependencies=[Depends(_require_admin)])
+async def admin_cleanup(payload: AdminCleanupIn):
+    idle_minutes = payload.idle_minutes if payload.idle_minutes is not None else DEFAULT_IDLE_MIN
+    max_active = payload.max_active if payload.max_active is not None else MAX_ACTIVE
+    dry_run = bool(payload.dry_run)
+
+    active = await _list_active_sessions()
+
+    # Determine idle sessions
+    now = datetime.now(timezone.utc)
+    to_terminate: List[Dict[str, Any]] = []
+
+    # Terminate idle by last_accessed
+    cutoff = now - timedelta(minutes=idle_minutes)
+    for it in active:
+        last = it.get("last_accessed") or it.get("created_at")
+        try:
+            last_dt = datetime.fromisoformat(last)
+        except Exception:
+            last_dt = now
+        if last_dt.replace(tzinfo=timezone.utc) <= cutoff:
+            to_terminate.append(it)
+
+    # Enforce max_active by oldest first
+    if max_active and max_active > 0 and len(active) - len(to_terminate) > max_active:
+        remaining_after_idle = [it for it in active if it not in to_terminate]
+        overflow = (len(remaining_after_idle) - max_active)
+        if overflow > 0:
+            to_terminate.extend(remaining_after_idle[:overflow])
+
+    # Deduplicate
+    seen = set()
+    unique_terminate = []
+    for it in to_terminate:
+        key = it["session_uuid"]
+        if key not in seen:
+            seen.add(key)
+            unique_terminate.append(it)
+
+    if dry_run:
+        return {"dry_run": True, "would_terminate": [it["session_uuid"] for it in unique_terminate], "count": len(unique_terminate)}
+
+    results = []
+    for it in unique_terminate:
+        res = await _terminate_session_record(it, reason="admin_cleanup")
+        results.append(res)
+
+    return {"terminated": results, "count": len(results)}
+
+@hb_router.delete("/admin/sessions/{session_uuid}", dependencies=[Depends(_require_admin)])
+async def admin_terminate_one(session_uuid: str):
+    doc = await db.hb_sessions.find_one({"session_uuid": session_uuid, "is_active": True})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Active session not found")
+    res = await _terminate_session_record(doc, reason="admin_force")
+    return res
+
 # Include routers in the main app
 app.include_router(api_router)
 app.include_router(hb_router)
@@ -407,16 +558,5 @@ app.add_middleware(
     allow_credentials=True,
     allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
     allow_methods=["*"],
-    allow_headers=["*"],
+    allow_headers=["*"]
 )
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
-
-@app.on_event("shutdown")
-async def shutdown_db_client():
-    client.close()
