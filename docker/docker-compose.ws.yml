@@ -1,0 +1,10 @@
+version: "3.8"
+services:
+  coffee-nginx-ws:
+    image: nginx:1.25-alpine
+    # platform: linux/arm64/v8
+    ports:
+      - "8081:80"   # HTTP only, minimal WS/API proxy
+    volumes:
+      - ./nginx/conf.d/ws-only.conf:/etc/nginx/conf.d/default.conf:ro
+    restart: unless-stopped

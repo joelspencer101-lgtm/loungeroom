@@ -1,19 +1,31 @@
-# Coffee Table - Local NGINX Reverse Proxy (TLS)
+# Coffee Table - Local NGINX Reverse Proxies
 
-This Dockerized NGINX proxies your local dev services with TLS:
-- https://localhost:8443 → frontend http://localhost:3000
-- https://localhost:8443/api and wss://localhost:8443/api/hb/ws/room → backend http://localhost:8001
+Two options are provided:
 
-Quick start
-1. Ensure your local services are running:
-   - Backend: http://localhost:8001
-   - Frontend: http://localhost:3000
-2. Generate certs and start NGINX:
-   - bash ./scripts/dev_nginx_tls_setup.sh
-3. Open https://localhost:8443
-4. In your React app, set REACT_APP_BACKEND_URL to https://localhost:8443 (e.g. in frontend/.env.local) and restart the dev server.
+1) TLS Dev Proxy (recommended for full app testing)
+- HTTPS: https://localhost:8443
+- HTTP redirect: http://localhost:8080 -> HTTPS
+- /api and wss://.../api/hb/ws/room proxied to backend http://localhost:8001
+- / proxied to frontend http://localhost:3000
+
+Run:
+- make up-dev-proxy
+- make logs-dev-proxy
+- make down-dev-proxy
+
+2) Minimal WS Proxy (HTTP only, simple WebSocket focus)
+- HTTP: http://localhost:8081
+- /api and ws://.../api/hb/ws/room -> backend http://localhost:8001
+- / -> frontend http://localhost:3000
+
+Run:
+- make up-ws-proxy
+- make logs-ws-proxy
+- make down-ws-proxy
 
 Notes
-- On macOS, add this folder to Docker Desktop → Settings → Resources → File Sharing.
-- The WebSocket route is explicitly configured at /api/hb/ws/room with Upgrade/Connection headers.
-- Ports: 8080 (optional HTTP redirect), 8443 (HTTPS).
+- Ensure Docker Desktop file sharing includes this folder.
+- For React frontend to call backend via the proxy:
+  - TLS dev proxy: set REACT_APP_BACKEND_URL=https://localhost:8443
+  - Minimal WS proxy: set REACT_APP_BACKEND_URL=http://localhost:8081
+- WebSocket indicator appears in the session view (top-right) to confirm WS vs Poll.
